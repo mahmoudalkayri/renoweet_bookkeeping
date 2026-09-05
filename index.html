@@ -8,93 +8,181 @@
   <link rel="icon" href="renoweet-logo.png" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
-    :root{
-      --navy:#163A5F; --green:#6fb24b; --bg:#f4f7f9; --card:#fff; --text:#162231;
-      --muted:#697586; --line:#dfe6ec; --warn:#fff4d6; --warnText:#805700; --danger:#b42318;
-      --shadow:0 10px 28px rgba(13,42,70,.08);
-    }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    header{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.96);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-    .wrap{max-width:1450px;margin:auto;padding:0 22px}
-    .top{min-height:72px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .brand{display:flex;align-items:center;gap:12px;margin-right:auto}
-    .brand img{width:44px;height:44px;object-fit:contain}
-    .brand strong{font-size:20px;color:var(--navy)} .brand small{display:block;color:var(--muted)}
-    button,.btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;font:inherit}
-    .primary{background:var(--navy);color:#fff}.secondary{background:#e9f0f5;color:var(--navy)}
-    .green{background:var(--green);color:#fff}.danger{background:#fee4e2;color:var(--danger)}
-    input[type=file]{display:none}
-    main{padding:24px 0 50px}
-    .notice{background:var(--warn);color:var(--warnText);border:1px solid #f0d790;padding:12px 14px;border-radius:12px;margin-bottom:18px;font-size:14px}
-    .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
-    .status{margin-left:auto;color:var(--muted);font-size:13px}
-    .tabs{display:flex;gap:8px;overflow:auto;padding-bottom:5px}
-    .tab{white-space:nowrap;background:#e9eef2;color:#435160}.tab.active{background:var(--navy);color:white}
-    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow)}
-    .kpi{padding:18px}.kpi .label{color:var(--muted);font-size:13px;margin-bottom:7px}.kpi .value{font-size:27px;font-weight:800;color:var(--navy)}
-    .kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
-    .panel{padding:18px;margin-bottom:18px}
-    .panel-head{display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap}.panel-head h2{font-size:18px;margin:0;color:var(--navy)}
-    .search{margin-left:auto;max-width:320px;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
-    .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:68vh}
-    table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;background:white}
-    th{position:sticky;top:0;background:var(--navy);color:white;text-align:left;padding:11px 10px;z-index:2}
-    td{padding:9px 10px;border-bottom:1px solid #edf1f4;white-space:nowrap}
-    tr:hover td{background:#f7fafc}.money{text-align:right;font-variant-numeric:tabular-nums}
-    .pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#eef3f6}.pill.paid{background:#e5f5df;color:#315f20}
-    .pill.unknown{background:#fff0d4;color:#7a5200}
-    .split{display:grid;grid-template-columns:1fr 1fr;gap:18px}.empty{padding:36px;text-align:center;color:var(--muted)}
-    .footer{color:var(--muted);font-size:12px;padding:18px 0;text-align:center}
-    .modal{position:fixed;inset:0;background:rgba(10,28,44,.55);display:none;align-items:center;justify-content:center;z-index:100;padding:18px}
-    .modal.open{display:flex}.modal-card{width:min(820px,100%);max-height:92vh;overflow:auto;background:white;border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.2)}
-    .modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid var(--line)}
-    .modal-head h3{margin:0;color:var(--navy)}.modal-body{padding:20px}.modal-foot{padding:16px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px}
-    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field{display:flex;flex-direction:column;gap:6px}
-    .field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:700;color:#4b5968}
-    .field input,.field select,.field textarea{border:1px solid var(--line);border-radius:10px;padding:10px 11px;font:inherit;background:white}
-    .field textarea{min-height:82px;resize:vertical}.hint{font-size:12px;color:var(--muted)}
-    .editable-row{cursor:pointer}.actions{display:flex;gap:8px;flex-wrap:wrap}
-    .invoice-preview{background:white;padding:32px;max-width:800px;margin:auto;color:#111}
-    .invoice-preview .inv-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:4px solid var(--navy);padding-bottom:18px;margin-bottom:22px}
-    .invoice-preview .inv-head img{width:85px}.invoice-preview h1{color:var(--navy);margin:0 0 6px}
-    .invoice-preview .meta{font-size:13px;color:#555;line-height:1.7}
-    .invoice-preview .client{margin:18px 0;padding:14px;background:#f6f8fa;border-radius:10px}
-    .invoice-preview table th{position:static;background:#eef3f6;color:#111}.invoice-preview table td,.invoice-preview table th{padding:10px;border-bottom:1px solid #ddd}
-    .invoice-preview .totals{margin-left:auto;width:min(360px,100%);margin-top:18px}.invoice-preview .totals div{display:flex;justify-content:space-between;padding:6px 0}
-    .invoice-preview .grand{font-weight:800;font-size:18px;border-top:2px solid #222;margin-top:6px;padding-top:10px}
-    @media(max-width:960px){.grid{grid-template-columns:1fr 1fr}.split{grid-template-columns:1fr}}
-    @media(max-width:620px){
-      .wrap{padding:0 12px}.brand{width:100%}.grid{grid-template-columns:1fr 1fr;gap:9px}.kpi{padding:13px}.kpi .value{font-size:20px}
-      .status{width:100%;margin-left:0}.panel{padding:12px}.panel-head{align-items:flex-start;flex-direction:column}.search{margin-left:0;max-width:none}.form-grid{grid-template-columns:1fr}
-      .field.full{grid-column:auto}
-    }
-    @media print{
-      body *{visibility:hidden}.invoice-preview,.invoice-preview *{visibility:visible}.invoice-preview{position:absolute;left:0;top:0;width:100%;max-width:none}
-      .no-print{display:none!important}
-    }
-  </style>
+:root{
+  --navy:#0b1020; --navy2:#11182a; --navy3:#172238; --green:#6fb24b;
+  --bg:#0b1020; --card:#11182a; --text:#edf3f8; --muted:#9fb0c3;
+  --line:#26344f; --warn:#2b2514; --warnText:#f5d98d; --danger:#ff8f8f;
+  --shadow:0 14px 40px rgba(0,0,0,.24); --safe:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);-webkit-tap-highlight-color:transparent}
+header{position:sticky;top:0;z-index:30;background:rgba(8,13,24,.96);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.wrap{max-width:1450px;margin:auto;padding:0 22px}
+.top{min-height:72px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;margin-right:auto}
+.brand img{width:44px;height:44px;object-fit:contain;background:#fff;border-radius:11px;padding:5px}
+.brand strong{font-size:20px;color:var(--text)} .brand small{display:block;color:var(--muted)}
+button,.btn{border:1px solid var(--line);border-radius:11px;padding:10px 14px;font-weight:700;cursor:pointer;font:inherit;min-height:42px;touch-action:manipulation}
+.primary{background:var(--green);border-color:var(--green);color:#0a1a0b}
+.secondary{background:var(--navy3);color:var(--text)}
+.green{background:var(--green);border-color:var(--green);color:#0a1a0b}
+.danger{background:#2a141a;color:#ffb7c0;border-color:#5a2b36}
+input[type=file]{display:none}
+main{padding:20px 0 70px}
+.notice{background:#101b2d;color:#c9d6e5;border:1px solid var(--line);padding:12px 14px;border-radius:12px;margin-bottom:15px;font-size:13px}
+.notice strong{color:#a8e0aa}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+.status{margin-left:auto;color:var(--muted);font-size:13px}
+.tabs{display:flex;gap:6px;overflow:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.tab{white-space:nowrap;background:#0d1525;color:var(--muted);border-color:var(--line)}
+.tab.active{background:var(--navy3);color:var(--text)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.kpi{padding:16px}.kpi .label{color:var(--muted);font-size:13px;margin-bottom:7px}.kpi .value{font-size:25px;font-weight:800;color:var(--text)}.kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
+.panel{padding:16px;margin-bottom:16px}
+.panel-head{display:flex;gap:12px;align-items:center;margin-bottom:13px;flex-wrap:wrap}.panel-head h2{font-size:18px;margin:0;color:var(--text)}
+.search{margin-left:auto;max-width:320px;width:100%;padding:10px 12px;border:1px solid var(--line);background:#0c1424;color:var(--text);border-radius:10px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px;max-height:68vh;-webkit-overflow-scrolling:touch}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;background:var(--card)}
+th{position:sticky;top:0;background:#0f1727;color:var(--muted);text-align:left;padding:11px 10px;z-index:2}
+td{padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}
+tr:hover td{background:#121d31}.money{text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#1a2539;color:var(--muted);border:1px solid var(--line)}
+.pill.paid{background:#17351a;color:#bff2c1;border-color:#326d36}.pill.unknown{background:#33270d;color:#ffe0a2;border-color:#705820}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:15px}.empty{padding:36px;text-align:center;color:var(--muted)}
+.footer{color:var(--muted);font-size:12px;padding:18px 0;text-align:center}
+.modal{position:fixed;inset:0;background:rgba(1,5,12,.78);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:22px 14px;overflow:auto}
+.modal.open{display:flex}.modal-card{width:min(820px,100%);max-height:94vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.35)}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card);z-index:5}
+.modal-head h3{margin:0;color:var(--text)}.modal-body{padding:18px}.modal-foot{padding:15px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;position:sticky;bottom:0;background:var(--card)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.field{display:flex;flex-direction:column;gap:6px}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:700;color:var(--muted)}
+.field input,.field select,.field textarea{border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:inherit;background:#0c1424;color:var(--text)}
+.field textarea{min-height:90px;resize:vertical}.hint{font-size:12px;color:var(--muted)}.editable-row{cursor:pointer}.actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Invoice preview - closely follows the supplied Renoweet invoice layout. */
+#previewModal .modal-card{width:min(980px,100%);background:#e8edf2}
+.invoice-preview{
+  background:#fff;color:#111;width:210mm;min-height:297mm;margin:0 auto;padding:17mm 16mm 14mm;
+  box-shadow:0 12px 36px rgba(0,0,0,.18);font-family:Arial,Helvetica,sans-serif;position:relative;
+}
+.inv-top{display:grid;grid-template-columns:1fr 88mm;min-height:72mm}
+.inv-business{grid-column:2;text-align:left;padding-left:8mm;font-size:12.5pt;line-height:1.42}
+.inv-brandline{display:flex;align-items:center;gap:5px;margin-bottom:3px}.inv-brandline img{width:15mm;height:15mm;object-fit:contain}.inv-brandline strong{font-size:24pt;line-height:1}
+.inv-tag{font-size:12pt;margin:1mm 0 3mm}.inv-link{color:#0563c1;text-decoration:underline}
+.inv-reg{margin-top:7mm;padding-left:12mm}.inv-customer{margin:1mm 0 8mm 9mm;font-size:12pt;line-height:1.45}
+.inv-title-row{display:grid;grid-template-columns:1fr 70mm;align-items:end;margin:0 8mm 5mm 9mm}
+.inv-title-row h1{font-size:17pt;line-height:1.15;margin:0;font-weight:800}.inv-dates{font-size:12pt;line-height:1.55;text-align:left}
+.inv-table{width:100%;border-collapse:collapse;font-size:11.5pt;background:#fff;table-layout:fixed}
+.inv-table th{position:static;background:#fff;color:#111;border-bottom:1.5px solid #111;padding:2mm 2mm 1.5mm;font-weight:700}
+.inv-table td{border:0;padding:2.2mm 2mm;vertical-align:top;white-space:normal;background:#fff}
+.inv-table .desc{width:56%;line-height:1.5}.inv-table .amt{width:16%;text-align:right}.inv-table .qty{width:10%;text-align:center}.inv-table .tot{width:18%;text-align:right}
+.inv-main-row td{min-height:29mm}.inv-spacer td{height:6mm}.inv-summary{margin-left:auto;width:63%;font-size:11.5pt}
+.inv-sumrow{display:grid;grid-template-columns:1fr 22mm 42mm;min-height:6.5mm;align-items:center}.inv-sumrow b:first-child{text-align:right;padding-right:7mm}.inv-sumrow .mid{text-align:center}.inv-sumrow .val{text-align:right}
+.inv-sumline{border-top:1.5px solid #111;padding-top:2mm}
+
+.inv-grand{display:grid;grid-template-columns:1fr 20mm 42mm;align-items:center;border-top:1.5px solid #111;border-bottom:1.5px solid #111;padding:2.5mm 2mm;margin:3mm 3mm 0 9mm;font-size:13pt;font-weight:800}
+.inv-grand .label{text-align:right;padding-right:7mm}.inv-grand .currency{text-align:center}.inv-grand .value{text-align:right;font-size:16pt}
+.inv-terms{margin-top:12mm;font-size:10.8pt;line-height:1.45}.inv-terms p{margin:0 0 1mm}.inv-accept{margin-top:12mm;font-size:10.5pt;font-style:italic}
+@media print{
+ .inv-accept{
+   position:fixed!important;
+   left:16mm!important;
+   right:16mm!important;
+   bottom:7mm!important;
+   margin:0!important;
+   padding-top:2mm!important;
+   background:#fff!important;
+   font-size:9pt!important;
+   line-height:1.25!important;
+   z-index:999!important;
+ }
+ .inv-terms{padding-bottom:14mm!important}
+}
+.inv-muted{color:#555}
+
+.lock-screen{position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,#08101e,#11182a);display:flex;align-items:center;justify-content:center;padding:20px}
+.lock-card{width:min(430px,100%);background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px;box-shadow:0 30px 90px rgba(0,0,0,.38);text-align:center}
+.lock-card img{width:82px;height:82px;object-fit:contain;background:#fff;border-radius:14px;padding:8px;margin-bottom:10px}.lock-card h1{margin:0;color:var(--text);font-size:28px}.lock-card p{color:var(--muted);font-size:14px;line-height:1.5}
+.lock-card input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font:inherit;margin:6px 0;background:#0c1424;color:var(--text)}.lock-card button{width:100%;margin-top:8px}
+.lock-msg{min-height:20px;margin-top:8px;font-size:13px;color:var(--danger)}.lock-help{margin-top:14px;font-size:11px;color:var(--muted)}
+body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-select:none}
+
+@media(max-width:960px){.grid{grid-template-columns:1fr 1fr}.split{grid-template-columns:1fr}}
+@media(max-width:700px){
+ .wrap{padding:0 12px}.top{min-height:auto;padding:10px 0}.brand{width:100%}.brand small{display:none}
+ header .top>button{flex:1 1 calc(50% - 6px);padding:9px 7px;font-size:12px}
+ main{padding-top:12px;padding-bottom:calc(86px + var(--safe))}
+ .notice{font-size:12px}.grid{grid-template-columns:1fr 1fr;gap:8px}.kpi{padding:12px}.kpi .value{font-size:19px}
+ .status{width:100%;margin-left:0}.panel{padding:11px}.panel-head{align-items:flex-start;flex-direction:column}.search{margin-left:0;max-width:none}
+ .form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}
+ .toolbar .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(8,13,24,.97);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:7px 5px calc(7px + var(--safe))}
+ .toolbar .tabs .tab{font-size:11px;padding:9px 3px;border:0;background:transparent}.toolbar .tabs .tab.active{background:var(--navy3)}
+ .modal{padding:0;align-items:stretch}.modal-card{width:100%;min-height:100dvh;max-height:none;border-radius:0;border:0}.modal-body{padding:14px 12px 90px}.modal-foot{padding-bottom:calc(14px + var(--safe))}
+ #previewModal{padding:0;background:#dfe5ea}#previewModal .modal-card{min-height:100dvh;border-radius:0}
+ .invoice-preview{width:210mm;transform-origin:top left;box-shadow:none}
+ #previewModal .invoice-preview{transform:scale(.48);margin:10px 0 -150mm 8px}
+}
+@media(max-width:430px){#previewModal .invoice-preview{transform:scale(.43);margin-left:4px;margin-bottom:-166mm}}
+
+@page{size:A4;margin:0}
+@media print{
+ html,body{background:#fff!important;width:210mm;margin:0!important;padding:0!important}
+ body *{visibility:hidden!important}
+ #previewModal,#previewModal .modal-card,#invoicePreview,#invoicePreview *{visibility:visible!important}
+ #previewModal{display:block!important;position:static!important;background:#fff!important;padding:0!important;margin:0!important}
+ #previewModal .modal-card{display:block!important;position:static!important;width:210mm!important;min-height:0!important;max-height:none!important;overflow:visible!important;border:0!important;border-radius:0!important;box-shadow:none!important;background:#fff!important}
+ #previewModal .modal-head{display:none!important}
+ .invoice-preview{position:absolute!important;left:0!important;top:0!important;margin:0!important;width:210mm!important;min-height:0!important;box-shadow:none!important;transform:none!important}
+}
+</style>
 </head>
-<body>
+<body class="locked">
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-card">
+    <img src="renoweet-logo.png" alt="Renoweet">
+    <h1>Renoweet</h1>
+    <p id="lockSubtitle">Private bookkeeping interface</p>
+
+    <div id="setupBlock" hidden>
+      <input id="newPin" type="password" inputmode="numeric" autocomplete="new-password" placeholder="Create a PIN (minimum 6 digits)">
+      <input id="newPin2" type="password" inputmode="numeric" autocomplete="new-password" placeholder="Repeat PIN">
+      <button class="primary" id="setupPinBtn">Create local PIN</button>
+    </div>
+
+    <div id="loginBlock" hidden>
+      <input id="loginPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="Enter PIN">
+      <button class="primary" id="unlockBtn">Unlock</button>
+    </div>
+
+    <div class="lock-msg" id="lockMsg"></div>
+    <div class="lock-help">
+      This lock is stored only in this browser. Your OneDrive workbook remains protected separately by browser file permission.
+    </div>
+  </div>
+</div>
+
 <header>
   <div class="wrap top">
     <div class="brand">
       <img src="renoweet-logo.png" alt="Renoweet logo">
-      <div><strong>Renoweet</strong><small>Bookkeeping & invoicing</small></div>
+      <div><strong>Renoweet Bookkeeping</strong><small>Finance & invoicing</small></div>
     </div>
     <button class="green" id="newInvoiceBtn">+ New invoice</button>
     <button class="secondary" id="newExpenseBtn">+ Add expense</button>
     <button class="primary" id="connectBtn">Connect OneDrive workbook</button>
+    <button class="secondary" id="syncOSBtn">Sync Renoweet OS</button>
     <button class="secondary" id="saveNowBtn" disabled>Save now</button>
+    <button class="secondary" id="lockBtn">Lock</button>
   </div>
 </header>
 
 <main class="wrap">
   <div class="notice">
-    <strong>Safe setup:</strong> keep only this interface on GitHub Pages. Keep the bookkeeping XLSX in your local OneDrive-synced folder.
+    <strong>Renoweet setup:</strong> keep only this interface on GitHub Pages. Keep the bookkeeping XLSX in your local OneDrive-synced folder.
     Click <b>Connect OneDrive workbook</b> once and choose the XLSX from that folder. Edits are then written directly to that local file and OneDrive syncs it automatically.
-    Your bookkeeping file does not need to be uploaded to GitHub.
+    Your bookkeeping file does not need to be uploaded to GitHub.<br>
+    <span id="osSyncStatus"><b>Renoweet OS sync:</b> not connected.</span>
   </div>
 
   <div class="toolbar">
@@ -177,12 +265,55 @@
 const HANDLE_DB="RenoweetBookkeepingFS";
 const HANDLE_STORE="handles";
 const HANDLE_KEY="bookkeepingWorkbook";
-let workbook=null, fileHandle=null, saveTimer=null, isSaving=false;
+const OS_HANDLE_KEY="renoweetOSWorkbook";
+let workbook=null, fileHandle=null, osFileHandle=null, saveTimer=null, isSaving=false;
 let data={invoices:[],expenses:[],fuel:[],auto:[]}, editingInvoiceIndex=null, editingExpense={type:null,index:null};
 
 const euro=new Intl.NumberFormat("nl-NL",{style:"currency",currency:"EUR"});
 const dateFmt=new Intl.DateTimeFormat("nl-NL");
 const $=id=>document.getElementById(id);
+const PIN_KEY="renoweet_local_pin_hash_v1";
+async function hashText(txt){
+  const data=new TextEncoder().encode(txt);
+  const digest=await crypto.subtle.digest("SHA-256",data);
+  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+async function initLock(){
+  const hasPin=!!localStorage.getItem(PIN_KEY);
+  $("setupBlock").hidden=hasPin;
+  $("loginBlock").hidden=!hasPin;
+  $("lockSubtitle").textContent=hasPin?"Enter your PIN to continue":"First use: create a local PIN for this browser";
+}
+async function setupPin(){
+  const a=$("newPin").value.trim(), b=$("newPin2").value.trim();
+  if(!/^\d{6,}$/.test(a)){$("lockMsg").textContent="Use at least 6 digits.";return}
+  if(a!==b){$("lockMsg").textContent="PINs do not match.";return}
+  localStorage.setItem(PIN_KEY,await hashText(a));
+  $("newPin").value=$("newPin2").value="";
+  await unlockUI();
+}
+async function unlock(){
+  const pin=$("loginPin").value.trim();
+  if(await hashText(pin)!==localStorage.getItem(PIN_KEY)){$("lockMsg").textContent="Incorrect PIN.";return}
+  $("loginPin").value="";
+  await unlockUI();
+}
+async function unlockUI(){
+  $("lockMsg").textContent="";
+  $("lockScreen").style.display="none";
+  document.body.classList.remove("locked");
+  sessionStorage.setItem("renoweet_unlocked","1");
+  if(!fileHandle && !workbook){
+    $("status").textContent="Unlocked • connect your OneDrive XLSX to load bookkeeping data";
+  }
+}
+function lockUI(){
+  sessionStorage.removeItem("renoweet_unlocked");
+  document.body.classList.add("locked");
+  $("lockScreen").style.display="flex";
+  initLock();
+}
+
 const esc=v=>String(v??"").replace(/[&<>"']/g,s=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[s]));
 const n=v=>{const x=Number(v);return Number.isFinite(x)?x:0};
 function excelDate(v){if(v instanceof Date)return v;if(typeof v==="number"){const d=XLSX.SSF.parse_date_code(v);if(d)return new Date(d.y,d.m-1,d.d)}const d=new Date(v);return isNaN(d)?null:d}
@@ -198,16 +329,16 @@ function openHandleDb(){
     req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
   });
 }
-async function rememberHandle(handle){
+async function rememberHandle(handle,key=HANDLE_KEY){
   const db=await openHandleDb();
   const tx=db.transaction(HANDLE_STORE,"readwrite");
-  tx.objectStore(HANDLE_STORE).put(handle,HANDLE_KEY);
+  tx.objectStore(HANDLE_STORE).put(handle,key);
   return new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});
 }
-async function getRememberedHandle(){
+async function getRememberedHandle(key=HANDLE_KEY){
   const db=await openHandleDb();
   const tx=db.transaction(HANDLE_STORE,"readonly");
-  const req=tx.objectStore(HANDLE_STORE).get(HANDLE_KEY);
+  const req=tx.objectStore(HANDLE_STORE).get(key);
   return new Promise((res,rej)=>{req.onsuccess=()=>res(req.result||null);req.onerror=()=>rej(req.error)});
 }
 async function verifyPermission(handle,ask=false){
@@ -304,12 +435,85 @@ $("saveInvoiceBtn").onclick=()=>{const r=invoiceFromForm();if(!r["Invoice #"]||!
   if(editingInvoiceIndex===null)data.invoices.push(r);else data.invoices[editingInvoiceIndex]=r;persist();render();closeModal("invoiceModal")};
 $("previewInvoiceBtn").onclick=()=>showInvoicePreview(invoiceFromForm());
 function showInvoicePreview(r){
-  $("invoicePreview").innerHTML=`<div class="inv-head"><div><img src="renoweet-logo.png"><div class="meta">Renoweet<br>KVK 97746312<br>www.renoweet.nl</div></div><div style="text-align:right"><h1>FACTUUR</h1><div class="meta">Factuurnr: <b>${esc(r["Invoice #"])}</b><br>Datum: ${fmtDate(r.Date)}<br>Vervaldatum: ${fmtDate(r["Due date"])}</div></div></div>
-  <div class="client"><b>${esc(r.Customer)}</b><br>${esc(r.Address)}<br>${esc(r.Contact)}</div>
-  <table><thead><tr><th>Omschrijving</th><th style="text-align:right">Bedrag</th></tr></thead><tbody>
-  <tr><td>${esc(r["Work description"])}</td><td class="money">${euro.format(r["Gross incl. VAT"])}</td></tr>
-  ${r.Parking?`<tr><td>Parking</td><td class="money">${euro.format(r.Parking)}</td></tr>`:""}${r["Other costs"]?`<tr><td>Other costs</td><td class="money">${euro.format(r["Other costs"])}</td></tr>`:""}
-  </tbody></table><div class="totals"><div><span>BTW</span><b>${euro.format(r.VAT)}</b></div><div><span>Net revenue</span><b>${euro.format(r["Net revenue"])}</b></div><div class="grand"><span>Totaal incl. BTW</span><span>${euro.format(r["Gross incl. VAT"]+r.Parking+r["Other costs"])}</span></div></div>`;
+  const invoiceDate=excelDate(r.Date), dueDate=excelDate(r["Due date"]);
+  let payDays=3;
+  if(invoiceDate && dueDate){
+    const diff=Math.round((dueDate-invoiceDate)/86400000);
+    if(Number.isFinite(diff) && diff>=0) payDays=diff;
+  }
+  const gross=n(r["Gross incl. VAT"]);
+  const vat=n(r.VAT);
+  const netBeforeVat=gross-vat;
+  const parking=n(r.Parking), other=n(r["Other costs"]);
+  const extra=parking+other;
+  const mainTotal=Math.max(0,netBeforeVat-extra);
+  const qty=1;
+  const unitAmount=mainTotal;
+  const grand=gross;
+
+  $("invoicePreview").innerHTML=`
+  <div class="inv-top">
+    <div></div>
+    <div class="inv-business">
+      <div class="inv-brandline"><img src="renoweet-logo.png"><strong>Renoweet</strong></div>
+      <div class="inv-tag">Slim en Duurzaam. Voor elke klus</div>
+      <div>Hiridostraat 2c65</div>
+      <div>1101 CW Amsterdam</div>
+      <div style="height:4mm"></div>
+      <div><span class="inv-link">renoweet@hotmail.com</span></div>
+      <div>+31 6 43865003</div>
+      <div class="inv-reg">
+        <div>KVK:&nbsp;&nbsp; 97746312</div>
+        <div>BTW:&nbsp; NL005285311B07</div>
+        <div>Bank:&nbsp; NL45INGB0111929547</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="inv-customer">
+    <div><b>${esc(r.Customer||"")}</b></div>
+    <div>${esc(r.Address||"")}</div>
+    ${r.Contact?`<div>${esc(r.Contact)}</div>`:""}
+  </div>
+
+  <div class="inv-title-row">
+    <h1>Factuur ${esc(r["Invoice #"]||"")}</h1>
+    <div class="inv-dates">
+      <div>Factuurdatum&nbsp;&nbsp; ${fmtDate(r.Date)}</div>
+      <div>Vervaldatum&nbsp; ${fmtDate(r["Due date"])}</div>
+    </div>
+  </div>
+
+  <table class="inv-table">
+    <thead><tr><th class="desc">Omschrijving</th><th class="amt">Bedrag</th><th class="qty">St.</th><th class="tot">Totaal</th></tr></thead>
+    <tbody>
+      <tr class="inv-main-row">
+        <td class="desc">${esc(r["Work description"]||"")}</td>
+        <td class="amt">€ ${unitAmount?unitAmount.toFixed(2):"-"}</td>
+        <td class="qty">${qty}</td>
+        <td class="tot">€ ${mainTotal?mainTotal.toFixed(2):"-"}</td>
+      </tr>
+      ${parking?`<tr><td class="desc">Parkeren en reiskosten</td><td class="amt">€ ${parking.toFixed(2)}</td><td class="qty">1</td><td class="tot">€ ${parking.toFixed(2)}</td></tr>`:""}
+      ${other?`<tr><td class="desc">Overige kosten</td><td class="amt">€ ${other.toFixed(2)}</td><td class="qty">1</td><td class="tot">€ ${other.toFixed(2)}</td></tr>`:""}
+      <tr class="inv-spacer"><td></td><td></td><td></td><td></td></tr>
+    </tbody>
+  </table>
+
+  <div class="inv-summary inv-sumline">
+    <div class="inv-sumrow"><b>Subtotaal</b><span class="mid">€</span><span class="val">${netBeforeVat.toFixed(2)}</span></div>
+    <div class="inv-sumrow"><b>BTW</b><span class="mid">21%&nbsp;&nbsp; €</span><span class="val">${vat.toFixed(2)}</span></div>
+    ${other?`<div class="inv-sumrow"><b>overige kosten</b><span></span><span class="val">€ ${other.toFixed(2)}</span></div>`:""}
+    ${parking?`<div class="inv-sumrow"><b>Parkeren en reiskosten</b><span></span><span class="val">€ ${parking.toFixed(2)}</span></div>`:""}
+  </div>
+  <div class="inv-grand"><span class="label">Totaal</span><span class="currency">€</span><span class="value">${grand.toFixed(2)}</span></div>
+
+  <div class="inv-terms">
+    <p>Op alle werkzaamheden en leveringen van Renoweet zijn de Algemene Voorwaarden Renoweet van toepassing.</p>
+    <p>Betaling binnen <b>${payDays} ${payDays===1?"dag":"dagen"}</b> na factuurdatum.</p>
+    <p>Bij niet-tijdige betaling is Renoweet gerechtigd wettelijke rente en incassokosten in rekening te brengen.</p>
+    <p>De algemene voorwaarden zijn op verzoek kosteloos verkrijgbaar en worden geacht aan de opdrachtgever ter beschikking te zijn gesteld.</p>
+  </div>
+  <div class="inv-accept">“De opdrachtgever verklaart de toepasselijke algemene voorwaarden te hebben ontvangen en daarmee akkoord te gaan.”</div>`;
   openModal("previewModal");
 }
 function openExpense(type="General",index=null){
@@ -417,7 +621,107 @@ async function connectWorkbook(){
     if(e.name!=="AbortError") alert("Could not connect workbook: "+e.message);
   }
 }
+
+function osDateToSerial(v){
+  if(!v)return "";
+  if(typeof v==="number")return v;
+  const d=new Date(String(v).slice(0,10)+"T00:00:00");
+  return isNaN(d)?"":(d-Date.UTC(1899,11,30))/86400000;
+}
+function osInvoiceToBookkeeping(r){
+  const total=n(r["Total incl VAT"]);
+  const vat=n(r["VAT"]);
+  const parking=n(r["Parking"]);
+  const other=n(r["Other costs"]);
+  const netBeforeVat=Math.max(0,total-vat);
+  return {
+    "Invoice #":String(r["Invoice number"]||"").trim(),
+    "Date":osDateToSerial(r["Invoice date"]),
+    "Customer":r["Customer"]||"",
+    "Address":r["Address"]||"",
+    "Work description":r["Description"]||r["Project"]||"",
+    "Contact":"",
+    "Gross incl. VAT":total,
+    "Parking":parking,
+    "Other costs":other,
+    "VAT":vat,
+    "Net revenue":netBeforeVat-parking-other,
+    "Status":r["Status"]==="Paid"?"Paid":"Open",
+    "Due date":osDateToSerial(r["Due date"]),
+    "Paid date":"",
+    "Days overdue":"",
+    "Notes":r["Project"]?("Renoweet OS project: "+r["Project"]):"Imported from Renoweet OS"
+  };
+}
+async function chooseOSWorkbook(){
+  if(!("showOpenFilePicker" in window)){
+    alert("Renoweet OS sync needs Microsoft Edge or Google Chrome.");
+    return null;
+  }
+  try{
+    const [handle]=await window.showOpenFilePicker({
+      multiple:false,
+      types:[{description:"Renoweet OS Excel database",accept:{"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":[".xlsx"]}}]
+    });
+    if(!(await verifyPermission(handle,true)))return null;
+    osFileHandle=handle;
+    await rememberHandle(handle,OS_HANDLE_KEY);
+    return handle;
+  }catch(e){
+    if(e.name!=="AbortError")alert("Could not connect Renoweet OS database: "+e.message);
+    return null;
+  }
+}
+async function syncRenoweetOS(){
+  if(!workbook||!fileHandle){
+    alert("Connect your bookkeeping OneDrive workbook first.");
+    return;
+  }
+  let handle=osFileHandle;
+  if(!handle){
+    const remembered=await getRememberedHandle(OS_HANDLE_KEY);
+    if(remembered && await verifyPermission(remembered,false)){
+      handle=remembered; osFileHandle=remembered;
+    }else handle=await chooseOSWorkbook();
+  }
+  if(!handle)return;
+  if(!(await verifyPermission(handle,true))){
+    handle=await chooseOSWorkbook();
+    if(!handle)return;
+  }
+
+  try{
+    $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> reading database…";
+    const file=await handle.getFile();
+    const osBook=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
+    const ws=osBook.Sheets["Bookkeeping"];
+    if(!ws){
+      alert("No Bookkeeping sheet was found in the Renoweet OS database. First use “Send to bookkeeping” on an invoice in Renoweet OS.");
+      $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> no Bookkeeping sheet found.";
+      return;
+    }
+    const incoming=XLSX.utils.sheet_to_json(ws,{defval:"",raw:true}).filter(r=>r["Invoice number"]);
+    let added=0,updated=0;
+    incoming.forEach(osRow=>{
+      const row=osInvoiceToBookkeeping(osRow);
+      if(!row["Invoice #"])return;
+      const idx=data.invoices.findIndex(x=>String(x["Invoice #"]||"").trim()===row["Invoice #"]);
+      if(idx>=0){data.invoices[idx]={...data.invoices[idx],...row};updated++}
+      else{data.invoices.push(row);added++}
+    });
+    render();
+    await saveWorkbook(false);
+    $("osSyncStatus").innerHTML=`<b>Renoweet OS sync:</b> ${added} new, ${updated} updated • ${incoming.length} received.`;
+    alert(`Renoweet OS sync complete.\n\nNew invoices: ${added}\nUpdated invoices: ${updated}`);
+  }catch(e){
+    console.error(e);
+    $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> failed.";
+    alert("Could not sync Renoweet OS: "+e.message);
+  }
+}
+
 $("connectBtn").onclick=connectWorkbook;
+$("syncOSBtn").onclick=syncRenoweetOS;
 $("saveNowBtn").onclick=()=>saveWorkbook(true);
 
 async function startup(){
@@ -427,6 +731,11 @@ async function startup(){
   }
   try{
     const remembered=await getRememberedHandle();
+    const rememberedOS=await getRememberedHandle(OS_HANDLE_KEY);
+    if(rememberedOS && await verifyPermission(rememberedOS,false)){
+      osFileHandle=rememberedOS;
+      $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> database remembered • click Sync Renoweet OS.";
+    }
     if(remembered && await verifyPermission(remembered,false)){
       await loadFromHandle(remembered,false);
     } else {
@@ -437,7 +746,39 @@ async function startup(){
     $("status").textContent="Choose your OneDrive XLSX to begin";
   }
 }
-startup();
+$("setupPinBtn").onclick=setupPin;
+$("unlockBtn").onclick=unlock;
+$("loginPin").addEventListener("keydown",e=>{if(e.key==="Enter")unlock()});
+$("lockBtn").onclick=lockUI;
+
+$("newInvoiceBtn").onclick=()=>openInvoice();
+$("newExpenseBtn").onclick=()=>openExpense("General");
+
+document.querySelectorAll("[data-close]").forEach(btn=>{
+  btn.onclick=()=>closeModal(btn.dataset.close);
+});
+
+document.querySelectorAll(".modal").forEach(modal=>{
+  modal.addEventListener("click",e=>{
+    if(e.target===modal) closeModal(modal.id);
+  });
+});
+
+document.querySelectorAll(".tab").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b===btn));
+    document.querySelectorAll(".view").forEach(v=>v.hidden=v.id!==btn.dataset.view);
+  });
+});
+
+(async()=>{
+  await initLock();
+  if(sessionStorage.getItem("renoweet_unlocked")==="1"){
+    $("lockScreen").style.display="none";
+    document.body.classList.remove("locked");
+  }
+  await startup();
+})();
 
 </script>
 </body>
