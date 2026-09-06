@@ -485,9 +485,11 @@ function renderDashboardCharts(){
   destroyDashboardCharts();
   const months=lastMonths(6), labels=months.map(monthLabel);
   const allExpenses=[...data.expenses,...data.fuel,...data.auto];
-  const rev=sumByMonth(data.invoices,'Net revenue',months), exp=sumByMonth(allExpenses,'Net',months);
+  const paidInvoices=data.invoices.filter(r=>String(r.Status||'').toLowerCase()==='paid');
+  const openInvoices=data.invoices.filter(r=>String(r.Status||'').toLowerCase()==='open');
+  const rev=sumByMonth(paidInvoices,'Net revenue',months), anticipated=sumByMonth(openInvoices,'Net revenue',months), exp=sumByMonth(allExpenses,'Net',months);
   const common={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:chartTextColor(),boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${euro.format(ctx.parsed.y??ctx.parsed)}`}}},scales:{x:{ticks:{color:chartTextColor()},grid:{display:false}},y:{beginAtZero:true,ticks:{color:chartTextColor(),callback:v=>euro.format(v)},grid:{color:chartGridColor()}}}};
-  const trendEl=$('cashflowChart'); if(trendEl) dashboardCharts.push(new Chart(trendEl,{type:'bar',data:{labels,datasets:[{label:'Revenue ex VAT',data:rev,backgroundColor:'rgba(111,178,75,.78)',borderRadius:6},{label:'Net expenses',data:exp,backgroundColor:'rgba(245,217,141,.68)',borderRadius:6}]},options:common}));
+  const trendEl=$('cashflowChart'); if(trendEl) dashboardCharts.push(new Chart(trendEl,{type:'bar',data:{labels,datasets:[{label:'Paid revenue ex VAT',data:rev,backgroundColor:'rgba(111,178,75,.78)',borderRadius:6},{label:'Anticipated open revenue',data:anticipated,backgroundColor:'rgba(93,143,214,.62)',borderRadius:6},{label:'Net expenses',data:exp,backgroundColor:'rgba(245,217,141,.68)',borderRadius:6}]},options:common}));
   const grossGeneral=sum(data.expenses,'Gross'), grossFuel=sum(data.fuel,'Gross'), grossAuto=sum(data.auto,'Gross');
   const costEl=$('costChart'); if(costEl) dashboardCharts.push(new Chart(costEl,{type:'doughnut',data:{labels:['General','Fuel','Automobile'],datasets:[{data:[grossGeneral,grossFuel,grossAuto],backgroundColor:['#6fb24b','#5d8fd6','#d6a75d'],borderColor:'#11182a',borderWidth:3}]},options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{position:'bottom',labels:{color:chartTextColor(),boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:(ctx)=>`${ctx.label}: ${euro.format(ctx.parsed)}`}}}}}));
   const paid=data.invoices.filter(r=>String(r.Status||'').toLowerCase()==='paid').length;
@@ -497,24 +499,30 @@ function renderDashboardCharts(){
 }
 function dashboard(){
   const inv=data.invoices, exp=data.expenses, fuel=data.fuel, auto=data.auto;
-  const grossRevenue=sum(inv,"Gross incl. VAT"), netRevenue=sum(inv,"Net revenue");
+  const paidInv=inv.filter(r=>String(r.Status||'').toLowerCase()==='paid');
+  const openInv=inv.filter(r=>String(r.Status||'').toLowerCase()==='open');
+  const unknownInv=inv.filter(r=>!['paid','open'].includes(String(r.Status||'').toLowerCase()));
+  const grossRevenue=sum(paidInv,"Gross incl. VAT"), netRevenue=sum(paidInv,"Net revenue");
+  const anticipatedGross=sum(openInv,"Gross incl. VAT"), anticipatedNet=sum(openInv,"Net revenue");
   const grossGeneral=sum(exp,"Gross"), netGeneral=sum(exp,"Net");
   const grossFuel=sum(fuel,"Gross"),netFuel=sum(fuel,"Net"),grossAuto=sum(auto,"Gross"),netAuto=sum(auto,"Net");
   const grossExpenses=grossGeneral+grossFuel+grossAuto,netExpenses=netGeneral+netFuel+netAuto;
-  const vatCollected=sum(inv,"VAT"),vatExpenses=sum(exp,"VAT")+sum(fuel,"VAT")+sum(auto,"VAT");
+  const vatCollected=sum(paidInv,"VAT"),vatExpenses=sum(exp,"VAT")+sum(fuel,"VAT")+sum(auto,"VAT");
   const operating=netRevenue-netExpenses,vatPosition=vatCollected-vatExpenses;
   $("dashboard").innerHTML=`<div class="grid">
-    ${kpi("Gross invoiced",euro.format(grossRevenue),`${inv.length} invoices`)}
-    ${kpi("Revenue ex VAT",euro.format(netRevenue),"Gross invoiced − VAT")}
+    ${kpi("Paid invoiced",euro.format(grossRevenue),`${paidInv.length} paid invoice${paidInv.length===1?'':'s'}`)}
+    ${kpi("Paid revenue ex VAT",euro.format(netRevenue),"Paid invoices only")}
+    ${kpi("Anticipated open revenue",euro.format(anticipatedNet),`${openInv.length} open • gross ${euro.format(anticipatedGross)}`)}
     ${kpi("Overall net expenses",euro.format(netExpenses),"General + fuel + automobile")}
-    ${kpi("Operating result",euro.format(operating),"Revenue ex VAT − net expenses")}
+    ${kpi("Operating result",euro.format(operating),"Paid revenue ex VAT − net expenses")}
     ${kpi("Fuel (gross)",euro.format(grossFuel),`${fuel.length} entries`)}
     ${kpi("Automobile (gross)",euro.format(grossAuto),`${auto.length} entries`)}
-    ${kpi("VAT position",euro.format(vatPosition),"Collected − expense VAT")}
-    ${kpi("Average invoice",euro.format(inv.length?grossRevenue/inv.length:0),"Gross average")}
+    ${kpi("VAT position",euro.format(vatPosition),"Paid invoice VAT − all expense VAT")}
+    ${kpi("Average paid invoice",euro.format(paidInv.length?grossRevenue/paidInv.length:0),"Gross average")}
+    ${kpi("Unknown invoices",String(unknownInv.length),"Excluded from all calculations")}
   </div>
   <div class="chart-grid">
-    <div class="card chart-card"><h2>Revenue vs expenses</h2><div class="chart-sub">Net amounts for the last 6 months</div><div class="chart-wrap"><canvas id="cashflowChart"></canvas></div></div>
+    <div class="card chart-card"><h2>Paid revenue, anticipated revenue & expenses</h2><div class="chart-sub">Last 6 months • Unknown invoices are excluded</div><div class="chart-wrap"><canvas id="cashflowChart"></canvas></div></div>
     <div class="card chart-card"><h2>Expense mix</h2><div class="chart-sub">Gross costs by category</div><div class="chart-wrap"><canvas id="costChart"></canvas></div></div>
   </div>
   <div class="chart-mini-grid">
@@ -570,10 +578,15 @@ function renderIncomeTax(){
   const years=taxYearOptions();
   const selected=Number(host.dataset.year)||years[0]||new Date().getFullYear();
   host.dataset.year=selected;
-  const inv=taxRowsForYear(data.invoices,selected), general=taxRowsForYear(data.expenses,selected), fuel=taxRowsForYear(data.fuel,selected), auto=taxRowsForYear(data.auto,selected);
-  const invAudit=taxAuditRows(inv,"Invoices"), generalAudit=taxAuditRows(general,"General"), fuelAudit=taxAuditRows(fuel,"Fuel"), autoAudit=taxAuditRows(auto,"Automobile");
+  const yearInvoices=taxRowsForYear(data.invoices,selected);
+  const inv=yearInvoices.filter(r=>String(r.Status||'').toLowerCase()==='paid');
+  const openInv=yearInvoices.filter(r=>String(r.Status||'').toLowerCase()==='open');
+  const unknownInv=yearInvoices.filter(r=>!['paid','open'].includes(String(r.Status||'').toLowerCase()));
+  const general=taxRowsForYear(data.expenses,selected), fuel=taxRowsForYear(data.fuel,selected), auto=taxRowsForYear(data.auto,selected);
+  const invAudit=taxAuditRows(inv,"Paid invoices"), openInvAudit=taxAuditRows(openInv,"Open invoices"), generalAudit=taxAuditRows(general,"General"), fuelAudit=taxAuditRows(fuel,"Fuel"), autoAudit=taxAuditRows(auto,"Automobile");
   const vehicleAudit=[...fuelAudit,...autoAudit], allExpenseAudit=[...generalAudit,...vehicleAudit];
   const invT=taxTotals(invAudit), generalT=taxTotals(generalAudit), fuelT=taxTotals(fuelAudit), autoT=taxTotals(autoAudit), vehicleT=taxTotals(vehicleAudit), allT=taxTotals(allExpenseAudit);
+  const openInvT=taxTotals(openInvAudit);
   const revenue=invT.net, totalCosts=allT.net, result=revenue-totalCosts;
   const outputVat=invT.vat, inputGeneral=generalT.vat, inputFuel=fuelT.vat, inputAuto=autoT.vat, inputVat=allT.vat, vatPosition=outputVat-inputVat;
   const mismatches=[...invAudit,...allExpenseAudit].filter(r=>r.mismatch);
@@ -584,15 +597,18 @@ function renderIncomeTax(){
     </div>
     <div class="tax-grid" style="margin-top:12px">
       <div class="card tax-card"><h2>Profit & loss</h2>
-        ${taxTriple("Revenue / omzet",invT.gross,invT.vat,invT.net)}
+        ${taxTriple("Paid revenue / omzet",invT.gross,invT.vat,invT.net)}
+        ${taxLine("Anticipated open revenue ex VAT",openInvT.net)}
+        ${taxLine("Unknown invoices excluded",unknownInv.length)}
         ${taxLine("Other business costs ex VAT",generalT.net)}
         ${taxLine("Auto & transport costs ex VAT",vehicleT.net)}
         ${taxLine("Total business costs ex VAT",totalCosts,"tax-total")}
         ${taxLine("Result before depreciation / adjustments",result,"tax-total")}
-        ${taxAuditBlock('taxRevenueAudit','Revenue / omzet ex VAT',invAudit,'invoice')}
+        ${taxAuditBlock('taxRevenueAudit','Paid revenue / omzet ex VAT',invAudit,'invoice')}
+        ${taxAuditBlock('taxOpenRevenueAudit','Anticipated open revenue ex VAT',openInvAudit,'invoice')}
         ${taxAuditBlock('taxGeneralAudit','Other business costs ex VAT',generalAudit)}
         ${taxAuditBlock('taxAllCostsAudit','Total business costs ex VAT',allExpenseAudit)}
-        <p class="tax-note">Income-tax profit uses ex-VAT costs where the VAT is deductible. Auto & transport stays separate for easy entry, but is still included in total business costs.</p>
+        <p class="tax-note">Only invoices marked Paid are included in the actual revenue/result figures. Open invoices are shown separately as anticipated revenue. Unknown invoices are excluded completely. Auto & transport stays separate for easy entry, but is still included in total business costs.</p>
       </div>
       <div class="card tax-card"><h2>Other business costs</h2>
         ${taxTriple("General expenses",generalT.gross,generalT.vat,generalT.net,"tax-total")}
@@ -609,15 +625,15 @@ function renderIncomeTax(){
         <p class="tax-note">The purchase value of the company van itself is not treated here as a normal one-year running expense; handle fixed-asset purchase/depreciation separately at year end.</p>
       </div>
       <div class="card tax-card"><h2>VAT cross-check</h2>
-        ${taxLine("VAT collected on invoices",outputVat)}
+        ${taxLine("VAT on paid invoices",outputVat)}
         ${taxLine("VAT general expenses",inputGeneral)}
         ${taxLine("VAT fuel",inputFuel)}
         ${taxLine("VAT automobile",inputAuto)}
         ${taxLine("Total input VAT",inputVat)}
         ${taxLine("VAT position",vatPosition,"tax-total")}
-        ${taxAuditBlock('taxOutputVatAudit','VAT collected on invoices',invAudit,'vat')}
+        ${taxAuditBlock('taxOutputVatAudit','VAT on paid invoices',invAudit,'vat')}
         ${taxAuditBlock('taxInputVatAudit','All input VAT',allExpenseAudit,'vat')}
-        <p class="tax-note">The VAT cross-check includes General + Fuel + Automobile. Custom VAT amounts are used exactly as entered.</p>
+        <p class="tax-note">Invoice-side VAT in this operational view uses Paid invoices only. Open invoice VAT is anticipated and Unknown invoices are excluded. Input VAT still includes General + Fuel + Automobile. Custom VAT amounts are used exactly as entered.</p>
       </div>
       <div class="card tax-card"><h2>Data consistency check</h2>
         <div class="tax-row"><span>Rows where stored Net differs from Gross − VAT</span><strong>${mismatches.length}</strong></div>
@@ -1199,11 +1215,21 @@ async function syncRenoweetOS(){
     const osBook=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
     const ws=osBook.Sheets["Bookkeeping"];
     if(!ws){
-      alert("No Bookkeeping sheet was found in the Renoweet OS database. First use “Send to bookkeeping” on an invoice in Renoweet OS.");
+      alert("No Bookkeeping sheet was found in the Renoweet OS database. First use “Send to bookkeeping” from the invoice form in Renoweet OS.");
       $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> no Bookkeeping sheet found.";
       return;
     }
-    const incoming=XLSX.utils.sheet_to_json(ws,{defval:"",raw:true}).filter(r=>r["Invoice number"]);
+    const incoming=XLSX.utils.sheet_to_json(ws,{defval:"",raw:true}).filter(r=>{
+      if(!r["Invoice number"])return false;
+      const status=String(r["Status"]||'').trim().toLowerCase();
+      const sentAt=String(r["Sent at"]||'').trim();
+      return !!sentAt || ['sent','open','paid'].includes(status);
+    });
+    if(!incoming.length){
+      $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> no sent invoices found.";
+      alert("No sent invoices were found in Renoweet OS. Only invoices sent from the OS invoice form are imported into bookkeeping.");
+      return;
+    }
     let added=0,updated=0;
     incoming.forEach(osRow=>{
       const row=osInvoiceToBookkeeping(osRow);
