@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <style>
 :root{
   --navy:#0b1020; --navy2:#11182a; --navy3:#172238; --green:#6fb24b;
@@ -39,7 +40,7 @@ main{padding:20px 0 70px}
 .tabs{display:flex;gap:6px;overflow:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
 .tab{white-space:nowrap;background:#0d1525;color:var(--muted);border-color:var(--line)}
 .tab.active{background:var(--navy3);color:var(--text)}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
 .kpi{padding:16px}.kpi .label{color:var(--muted);font-size:13px;margin-bottom:7px}.kpi .value{font-size:25px;font-weight:800;color:var(--text)}.kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
 .panel{padding:16px;margin-bottom:16px}
@@ -129,6 +130,15 @@ tr:hover td{background:#121d31}.money{text-align:right;font-variant-numeric:tabu
 .lock-msg{min-height:20px;margin-top:8px;font-size:13px;color:var(--danger)}.lock-help{margin-top:14px;font-size:11px;color:var(--muted)}
 body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-select:none}
 
+
+.chart-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:15px;margin-bottom:16px}
+.chart-card{padding:16px;min-height:320px}
+.chart-card h2{font-size:18px;margin:0 0 4px;color:var(--text)}
+.chart-sub{font-size:12px;color:var(--muted);margin-bottom:12px}
+.chart-wrap{position:relative;height:250px;width:100%}
+.chart-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:16px}
+.chart-mini-grid .chart-wrap{height:230px}
+@media(max-width:960px){.chart-grid,.chart-mini-grid{grid-template-columns:1fr}}
 @media(max-width:960px){.grid{grid-template-columns:1fr 1fr}.split{grid-template-columns:1fr}}
 @media(max-width:700px){
  .wrap{padding:0 12px}.top{min-height:auto;padding:10px 0}.brand{width:100%}.brand small{display:none}
@@ -137,7 +147,7 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
  .notice{font-size:12px}.grid{grid-template-columns:1fr 1fr;gap:8px}.kpi{padding:12px}.kpi .value{font-size:19px}
  .status{width:100%;margin-left:0}.panel{padding:11px}.panel-head{align-items:flex-start;flex-direction:column}.search{margin-left:0;max-width:none}
  .form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}
- .toolbar .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(8,13,24,.97);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:7px 5px calc(7px + var(--safe))}
+ .toolbar .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(8,13,24,.97);backdrop-filter:blur(14px);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:7px 5px calc(7px + var(--safe))}
  .toolbar .tabs .tab{font-size:11px;padding:9px 3px;border:0;background:transparent}.toolbar .tabs .tab.active{background:var(--navy3)}
  .modal{padding:0;align-items:stretch}.modal-card{width:100%;min-height:100dvh;max-height:none;border-radius:0;border:0}.modal-body{padding:14px 12px 90px}.modal-foot{padding-bottom:calc(14px + var(--safe))}
  #previewModal{padding:0;background:#dfe5ea}#previewModal .modal-card{min-height:100dvh;border-radius:0}
@@ -160,6 +170,30 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
  .inv-accept{position:fixed!important;left:16mm!important;right:20mm!important;bottom:7mm!important;margin:0!important;padding-top:2mm!important;background:#fff!important;font-size:9pt!important;line-height:1.25!important;z-index:999!important}
  .inv-terms{padding-bottom:14mm!important}
 }
+
+/* Income-tax audit drill-down */
+.tax-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.tax-card{padding:16px}
+.tax-head{display:flex;justify-content:space-between;gap:14px;align-items:end}
+.tax-row{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--line)}
+.tax-row strong{text-align:right;white-space:nowrap}
+.tax-total{font-weight:800;border-top:1px solid rgba(111,178,75,.45);margin-top:4px}
+.tax-note{font-size:12px;line-height:1.55;color:var(--muted);margin:12px 0 0}
+.tax-audit{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.tax-audit-btn{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left}
+.tax-audit-panel{margin-top:9px}
+.tax-audit-panel[hidden]{display:none!important}
+.tax-audit-summary{font-size:12px;color:var(--muted);margin:0 0 8px}
+.tax-audit-table{width:100%;min-width:720px;border-collapse:collapse}
+.tax-audit-table th,.tax-audit-table td{padding:8px 9px;border-bottom:1px solid var(--line);font-size:12px;text-align:left;vertical-align:top}
+.tax-audit-table th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+.tax-audit-table td.money,.tax-audit-table th.money{text-align:right;white-space:nowrap}
+.tax-audit-table tfoot td{font-weight:800;border-top:1px solid rgba(111,178,75,.55)}
+.tax-audit-empty{padding:12px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:12px}
+.tax-source-tag{display:inline-flex;padding:2px 7px;border:1px solid var(--line);border-radius:999px;font-size:10px;color:var(--muted);white-space:nowrap}
+@media(max-width:960px){.tax-grid{grid-template-columns:1fr}}
+@media(max-width:700px){.tax-head{align-items:stretch;flex-direction:column}.tax-card{padding:12px}.tax-audit-table{min-width:650px}}
+
 </style>
 </head>
 <body class="locked">
@@ -216,6 +250,7 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
       <button class="tab" data-view="invoices">Invoices</button>
       <button class="tab" data-view="expenses">Expenses</button>
       <button class="tab" data-view="autoFuel">Auto & Fuel</button>
+      <button class="tab" data-view="incomeTax">Income Tax</button>
     </div>
     <div class="status" id="status">Loading database…</div>
   </div>
@@ -224,6 +259,7 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
   <section id="invoices" class="view" hidden></section>
   <section id="expenses" class="view" hidden></section>
   <section id="autoFuel" class="view" hidden></section>
+  <section id="incomeTax" class="view" hidden></section>
   <div class="footer">Renoweet • Internal bookkeeping view • www.renoweet.nl</div>
 </main>
 
@@ -232,13 +268,13 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
     <div class="modal-head"><h3 id="invoiceModalTitle">New invoice</h3><button class="secondary" data-close="invoiceModal">Close</button></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="field"><label>Invoice #</label><input id="invNo"></div>
-        <div class="field"><label>Date</label><input id="invDate" type="date"></div>
-        <div class="field"><label>Customer</label><input id="invCustomer"></div>
+        <div class="field"><label>Invoice # *</label><input id="invNo" required></div>
+        <div class="field"><label>Date *</label><input id="invDate" type="date" required></div>
+        <div class="field"><label>Customer *</label><input id="invCustomer" required></div>
         <div class="field"><label>Contact</label><input id="invContact"></div>
         <div class="field full"><label>Address</label><input id="invAddress"></div>
-        <div class="field full"><label>Work description</label><textarea id="invDescription"></textarea></div>
-        <div class="field"><label>Gross incl. VAT (€)</label><input id="invGross" type="number" step="0.01"></div>
+        <div class="field full"><label>Work description *</label><textarea id="invDescription" required></textarea></div>
+        <div class="field"><label>Gross incl. VAT (€) *</label><input id="invGross" type="number" step="0.01" min="0" required></div>
         <div class="field"><label>VAT rate</label><select id="invVatRate"><option value="21">21%</option><option value="9">9%</option><option value="0">0%</option></select></div>
         <div class="field"><label>Parking (€)</label><input id="invParking" type="number" step="0.01" value="0"></div>
         <div class="field"><label>Other costs (€)</label><input id="invOther" type="number" step="0.01" value="0"></div>
@@ -249,6 +285,7 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
       </div>
       <p class="hint">VAT and net revenue are calculated automatically from the gross amount. Parking and other costs are kept separate, matching your workbook structure.</p>
     </div>
+    <p class="hint">Fields marked * are required.</p>
     <div class="modal-foot">
       <button class="danger" id="deleteInvoiceBtn" hidden>Move to Deleted</button>
       <button class="secondary" id="previewInvoiceBtn">Preview / Print</button>
@@ -262,19 +299,21 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
     <div class="modal-head"><h3 id="expenseModalTitle">Add expense</h3><button class="secondary" data-close="expenseModal">Close</button></div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="field"><label>Date</label><input id="expDate" type="date"></div>
-        <div class="field"><label>Supplier</label><input id="expSupplier"></div>
+        <div class="field"><label>Date *</label><input id="expDate" type="date" required></div>
+        <div class="field"><label>Supplier *</label><input id="expSupplier" required></div>
         <div class="field"><label>Type</label>
           <select id="expType"><option value="General">General expense</option><option value="Fuel">Fuel</option><option value="Automobile">Automobile</option></select>
         </div>
         <div class="field" id="categoryField"><label>Category</label><input id="expCategory" placeholder="Materials, Software, Workwear..."></div>
         <div class="field full"><label>Description</label><input id="expDescription"></div>
-        <div class="field"><label>Gross (€)</label><input id="expGross" type="number" step="0.01"></div>
-        <div class="field"><label>VAT rate</label><select id="expVatRate"><option value="21">21%</option><option value="9">9%</option><option value="0">0%</option></select></div>
+        <div class="field"><label>Gross (€) *</label><input id="expGross" type="number" step="0.01" min="0" required></div>
+        <div class="field"><label>VAT</label><select id="expVatRate"><option value="21">21%</option><option value="9">9%</option><option value="0">0%</option><option value="custom">Custom VAT amount</option></select></div>
+        <div class="field" id="customVatField" style="display:none"><label>Custom VAT (€)</label><input id="expCustomVat" type="number" step="0.01" min="0" placeholder="Enter VAT from receipt"></div>
         <div class="field"><label>Receipt/File</label><input id="expReceipt"></div>
         <div class="field"><label>Review</label><select id="expReview"><option value=""></option><option>Yes</option><option>No</option></select></div>
         <div class="field full"><label>Notes</label><textarea id="expNotes"></textarea></div>
       </div>
+      <p class="hint">Choose 21%, 9% or 0% when the receipt uses a normal VAT rate. Choose Custom VAT amount when the VAT shown on the receipt cannot be calculated directly from the total.</p>
     </div>
     <div class="modal-foot"><button class="danger" id="deleteExpenseBtn" hidden>Move to Deleted</button><button class="green" id="saveExpenseBtn">Save expense</button></div>
   </div>
@@ -409,6 +448,9 @@ function scheduleAutoSave(){
 function sheetRows(name){const ws=workbook.Sheets[name];return ws?XLSX.utils.sheet_to_json(ws,{defval:"",raw:true}):[]}
 function normalize(){
   data.invoices=sheetRows("Invoices").filter(r=>r["Invoice #"]);
+  // Revenue ex VAT includes parking/other amounts charged to the customer.
+  // Those costs are recorded separately as expenses, so they must not reduce revenue here.
+  data.invoices.forEach(r=>{r["Net revenue"]=Math.max(0,n(r["Gross incl. VAT"])-n(r.VAT))});
   data.expenses=sheetRows("Expenses").filter(r=>r.Date||r.Supplier||r.Gross);
   data.deleted=sheetRows("Deleted").filter(r=>r["Deleted at"]||r.Type||r["Record ID"]);
   const ws=workbook.Sheets["Auto & Fuel"]; data.fuel=[];data.auto=[];
@@ -430,6 +472,29 @@ function makeTable(rows,cols,type){
     return `<td>${esc(v)}</td>`}).join("")}
     <td><button class="secondary" onclick="editRow('${type}',${i})">Edit</button></td></tr>`).join("")}</tbody></table></div>`;
 }
+let dashboardCharts=[];
+function destroyDashboardCharts(){dashboardCharts.forEach(c=>{try{c.destroy()}catch(e){}});dashboardCharts=[]}
+function monthKey(v){const d=excelDate(v);if(!d)return null;return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`}
+function monthLabel(k){if(!k)return "";const [y,m]=k.split("-").map(Number);return new Intl.DateTimeFormat("nl-NL",{month:"short",year:"2-digit"}).format(new Date(y,m-1,1))}
+function lastMonths(count=6){const out=[],d=new Date();d.setDate(1);for(let i=count-1;i>=0;i--){const x=new Date(d.getFullYear(),d.getMonth()-i,1);out.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`)}return out}
+function sumByMonth(rows,field,months){const map=Object.fromEntries(months.map(m=>[m,0]));rows.forEach(r=>{const k=monthKey(r.Date);if(k in map)map[k]+=n(r[field])});return months.map(m=>map[m])}
+function chartTextColor(){return getComputedStyle(document.documentElement).getPropertyValue('--muted').trim()||'#9fb0c3'}
+function chartGridColor(){return 'rgba(159,176,195,.12)'}
+function renderDashboardCharts(){
+  if(typeof Chart==='undefined')return;
+  destroyDashboardCharts();
+  const months=lastMonths(6), labels=months.map(monthLabel);
+  const allExpenses=[...data.expenses,...data.fuel,...data.auto];
+  const rev=sumByMonth(data.invoices,'Net revenue',months), exp=sumByMonth(allExpenses,'Net',months);
+  const common={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:chartTextColor(),boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${euro.format(ctx.parsed.y??ctx.parsed)}`}}},scales:{x:{ticks:{color:chartTextColor()},grid:{display:false}},y:{beginAtZero:true,ticks:{color:chartTextColor(),callback:v=>euro.format(v)},grid:{color:chartGridColor()}}}};
+  const trendEl=$('cashflowChart'); if(trendEl) dashboardCharts.push(new Chart(trendEl,{type:'bar',data:{labels,datasets:[{label:'Revenue ex VAT',data:rev,backgroundColor:'rgba(111,178,75,.78)',borderRadius:6},{label:'Net expenses',data:exp,backgroundColor:'rgba(245,217,141,.68)',borderRadius:6}]},options:common}));
+  const grossGeneral=sum(data.expenses,'Gross'), grossFuel=sum(data.fuel,'Gross'), grossAuto=sum(data.auto,'Gross');
+  const costEl=$('costChart'); if(costEl) dashboardCharts.push(new Chart(costEl,{type:'doughnut',data:{labels:['General','Fuel','Automobile'],datasets:[{data:[grossGeneral,grossFuel,grossAuto],backgroundColor:['#6fb24b','#5d8fd6','#d6a75d'],borderColor:'#11182a',borderWidth:3}]},options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{position:'bottom',labels:{color:chartTextColor(),boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:(ctx)=>`${ctx.label}: ${euro.format(ctx.parsed)}`}}}}}));
+  const paid=data.invoices.filter(r=>String(r.Status||'').toLowerCase()==='paid').length;
+  const open=data.invoices.filter(r=>String(r.Status||'').toLowerCase()==='open').length;
+  const unknown=Math.max(0,data.invoices.length-paid-open);
+  const statusEl=$('statusChart'); if(statusEl) dashboardCharts.push(new Chart(statusEl,{type:'doughnut',data:{labels:['Paid','Open','Unknown'],datasets:[{data:[paid,open,unknown],backgroundColor:['#6fb24b','#d6a75d','#77869a'],borderColor:'#11182a',borderWidth:3}]},options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{position:'bottom',labels:{color:chartTextColor(),boxWidth:12,usePointStyle:true}},tooltip:{callbacks:{label:(ctx)=>`${ctx.label}: ${ctx.parsed} invoice${ctx.parsed===1?'':'s'}`}}}}}));
+}
 function dashboard(){
   const inv=data.invoices, exp=data.expenses, fuel=data.fuel, auto=data.auto;
   const grossRevenue=sum(inv,"Gross incl. VAT"), netRevenue=sum(inv,"Net revenue");
@@ -440,16 +505,139 @@ function dashboard(){
   const operating=netRevenue-netExpenses,vatPosition=vatCollected-vatExpenses;
   $("dashboard").innerHTML=`<div class="grid">
     ${kpi("Gross invoiced",euro.format(grossRevenue),`${inv.length} invoices`)}
-    ${kpi("Net revenue",euro.format(netRevenue),"Excluding VAT")}
+    ${kpi("Revenue ex VAT",euro.format(netRevenue),"Gross invoiced − VAT")}
     ${kpi("Overall net expenses",euro.format(netExpenses),"General + fuel + automobile")}
-    ${kpi("Operating result",euro.format(operating),"Net revenue − net expenses")}
+    ${kpi("Operating result",euro.format(operating),"Revenue ex VAT − net expenses")}
     ${kpi("Fuel (gross)",euro.format(grossFuel),`${fuel.length} entries`)}
     ${kpi("Automobile (gross)",euro.format(grossAuto),`${auto.length} entries`)}
     ${kpi("VAT position",euro.format(vatPosition),"Collected − expense VAT")}
     ${kpi("Average invoice",euro.format(inv.length?grossRevenue/inv.length:0),"Gross average")}
-  </div><div class="card panel"><div class="panel-head"><h2>Cost breakdown</h2></div>${summaryTable([
-    ["General expenses",grossGeneral,netGeneral],["Fuel",grossFuel,netFuel],["Automobile",grossAuto,netAuto],["Overall",grossExpenses,netExpenses]])}</div>`;
+  </div>
+  <div class="chart-grid">
+    <div class="card chart-card"><h2>Revenue vs expenses</h2><div class="chart-sub">Net amounts for the last 6 months</div><div class="chart-wrap"><canvas id="cashflowChart"></canvas></div></div>
+    <div class="card chart-card"><h2>Expense mix</h2><div class="chart-sub">Gross costs by category</div><div class="chart-wrap"><canvas id="costChart"></canvas></div></div>
+  </div>
+  <div class="chart-mini-grid">
+    <div class="card chart-card"><h2>Invoice status</h2><div class="chart-sub">Paid, open and unknown invoices</div><div class="chart-wrap"><canvas id="statusChart"></canvas></div></div>
+    <div class="card panel"><div class="panel-head"><h2>Cost breakdown</h2></div>${summaryTable([
+      ["General expenses",grossGeneral,netGeneral],["Fuel",grossFuel,netFuel],["Automobile",grossAuto,netAuto],["Overall",grossExpenses,netExpenses]])}</div>
+  </div>`;
+  requestAnimationFrame(renderDashboardCharts);
 }
+function rowYear(r){const d=excelDate(r.Date);return d?d.getFullYear():null}
+function taxYearOptions(){
+  const years=new Set();
+  [...data.invoices,...data.expenses,...data.fuel,...data.auto].forEach(r=>{const y=rowYear(r);if(y)years.add(y)});
+  years.add(new Date().getFullYear());
+  return [...years].sort((a,b)=>b-a);
+}
+function taxRowsForYear(rows,year){return rows.filter(r=>rowYear(r)===year)}
+function taxLine(label,value,cls=""){return `<div class="tax-row ${cls}"><span>${esc(label)}</span><strong>${euro.format(value)}</strong></div>`}
+function taxTriple(title,gross,vat,net,cls=""){return `<div class="tax-row ${cls}"><span>${esc(title)} — Gross</span><strong>${euro.format(gross)}</strong></div>${taxLine(title+" — VAT",vat)}${taxLine(title+" — Ex VAT",net,cls)}`}
+function taxAuditRows(rows,source){
+  return rows.map((r,i)=>{
+    const gross=n(r.Gross??r["Gross incl. VAT"]), vat=n(r.VAT), calculatedNet=gross-vat;
+    const storedRaw=(r.Net!==undefined&&r.Net!=="")?r.Net:r["Net revenue"];
+    const hasStored=storedRaw!==undefined&&storedRaw!==""&&storedRaw!==null;
+    const storedNet=hasStored?n(storedRaw):calculatedNet;
+    return {
+      source, i, date:fmtDate(r.Date), party:r.Supplier||r.Customer||"",
+      category:r.Category||"", description:r.Description||r["Work description"]||"",
+      gross, vat, net:calculatedNet, storedNet, mismatch:hasStored&&Math.abs(storedNet-calculatedNet)>0.01
+    };
+  });
+}
+function taxTotals(rows){return {gross:rows.reduce((a,r)=>a+r.gross,0),vat:rows.reduce((a,r)=>a+r.vat,0),net:rows.reduce((a,r)=>a+r.net,0)}}
+function taxAuditTable(rows,mode="expense"){
+  if(!rows.length)return `<div class="tax-audit-empty">No transactions in this section for the selected year.</div>`;
+  const t=taxTotals(rows);
+  return `<div class="table-wrap" style="max-height:420px"><table class="tax-audit-table"><thead><tr><th>Date</th><th>Source</th><th>${mode==='invoice'?'Customer':'Supplier'}</th><th>Category / description</th><th class="money">Gross</th><th class="money">VAT</th><th class="money">${mode==='invoice'?'Revenue ex VAT':'Expense ex VAT'}</th><th>Check</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.date)}</td><td><span class="tax-source-tag">${esc(r.source)}</span></td><td>${esc(r.party)}</td><td>${esc([r.category,r.description].filter(Boolean).join(' — '))}</td><td class="money">${euro.format(r.gross)}</td><td class="money">${euro.format(r.vat)}</td><td class="money">${euro.format(r.net)}</td><td>${r.mismatch?`<span style="color:#ffb86c;font-weight:700">Stored net ${euro.format(r.storedNet)} ≠ Gross − VAT</span>`:'OK'}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="4">Total (${rows.length} transaction${rows.length===1?'':'s'})</td><td class="money">${euro.format(t.gross)}</td><td class="money">${euro.format(t.vat)}</td><td class="money">${euro.format(t.net)}</td><td></td></tr></tfoot></table></div>`;
+}
+function taxAuditBlock(id,label,rows,mode="expense"){
+  const total=rows.reduce((a,r)=>a+(mode==='vat'?r.vat:r.net),0);
+  const value=mode==='vat'?`VAT ${euro.format(total)}`:`${euro.format(total)}`;
+  return `<div class="tax-audit"><button class="secondary tax-audit-btn" type="button" data-tax-toggle="${esc(id)}"><span>Show calculation — ${esc(label)}</span><strong>${value}</strong></button><div class="tax-audit-panel" id="${esc(id)}" hidden><p class="tax-audit-summary">Every row below is included in this total. Gross − VAT = ex-VAT amount for expenses; invoice revenue ex VAT is Gross − VAT.</p>${taxAuditTable(rows,mode==='invoice'?'invoice':'expense')}</div></div>`;
+}
+function bindTaxAuditToggles(host){
+  host.querySelectorAll('[data-tax-toggle]').forEach(btn=>btn.onclick=()=>{
+    const panel=document.getElementById(btn.dataset.taxToggle); if(!panel)return;
+    const opening=panel.hidden; panel.hidden=!opening;
+    const span=btn.querySelector('span'); if(span)span.textContent=(opening?'Hide calculation — ':'Show calculation — ')+span.textContent.replace(/^(Show|Hide) calculation — /,'');
+  });
+}
+function renderIncomeTax(){
+  const host=$("incomeTax"); if(!host)return;
+  const years=taxYearOptions();
+  const selected=Number(host.dataset.year)||years[0]||new Date().getFullYear();
+  host.dataset.year=selected;
+  const inv=taxRowsForYear(data.invoices,selected), general=taxRowsForYear(data.expenses,selected), fuel=taxRowsForYear(data.fuel,selected), auto=taxRowsForYear(data.auto,selected);
+  const invAudit=taxAuditRows(inv,"Invoices"), generalAudit=taxAuditRows(general,"General"), fuelAudit=taxAuditRows(fuel,"Fuel"), autoAudit=taxAuditRows(auto,"Automobile");
+  const vehicleAudit=[...fuelAudit,...autoAudit], allExpenseAudit=[...generalAudit,...vehicleAudit];
+  const invT=taxTotals(invAudit), generalT=taxTotals(generalAudit), fuelT=taxTotals(fuelAudit), autoT=taxTotals(autoAudit), vehicleT=taxTotals(vehicleAudit), allT=taxTotals(allExpenseAudit);
+  const revenue=invT.net, totalCosts=allT.net, result=revenue-totalCosts;
+  const outputVat=invT.vat, inputGeneral=generalT.vat, inputFuel=fuelT.vat, inputAuto=autoT.vat, inputVat=allT.vat, vatPosition=outputVat-inputVat;
+  const mismatches=[...invAudit,...allExpenseAudit].filter(r=>r.mismatch);
+  host.innerHTML=`
+    <div class="card panel">
+      <div class="tax-head"><div><h2>Income tax return helper</h2><div class="chart-sub">All ex-VAT figures on this page are recalculated directly as Gross − VAT, so stale Net values in the XLSX cannot change the tax totals. Gross, VAT and ex-VAT are shown side by side for control.</div></div>
+      <label class="field" style="margin:0"><span style="font-size:12px;color:var(--muted)">Tax year</span><select id="taxYearSelect">${years.map(y=>`<option ${y===selected?'selected':''}>${y}</option>`).join('')}</select></label></div>
+    </div>
+    <div class="tax-grid" style="margin-top:12px">
+      <div class="card tax-card"><h2>Profit & loss</h2>
+        ${taxTriple("Revenue / omzet",invT.gross,invT.vat,invT.net)}
+        ${taxLine("Other business costs ex VAT",generalT.net)}
+        ${taxLine("Auto & transport costs ex VAT",vehicleT.net)}
+        ${taxLine("Total business costs ex VAT",totalCosts,"tax-total")}
+        ${taxLine("Result before depreciation / adjustments",result,"tax-total")}
+        ${taxAuditBlock('taxRevenueAudit','Revenue / omzet ex VAT',invAudit,'invoice')}
+        ${taxAuditBlock('taxGeneralAudit','Other business costs ex VAT',generalAudit)}
+        ${taxAuditBlock('taxAllCostsAudit','Total business costs ex VAT',allExpenseAudit)}
+        <p class="tax-note">Income-tax profit uses ex-VAT costs where the VAT is deductible. Auto & transport stays separate for easy entry, but is still included in total business costs.</p>
+      </div>
+      <div class="card tax-card"><h2>Other business costs</h2>
+        ${taxTriple("General expenses",generalT.gross,generalT.vat,generalT.net,"tax-total")}
+        ${taxAuditBlock('taxGeneralGrossAudit','General expenses',generalAudit)}
+        <p class="tax-note">Use Gross as the control total from your receipts, VAT as the VAT-return control, and Ex VAT as the deductible cost used in the income-tax profit calculation.</p>
+      </div>
+      <div class="card tax-card"><h2>Auto & transport detail</h2>
+        ${taxTriple("Fuel",fuelT.gross,fuelT.vat,fuelT.net)}
+        ${taxTriple("Other automobile costs",autoT.gross,autoT.vat,autoT.net)}
+        ${taxTriple("Auto & transport total",vehicleT.gross,vehicleT.vat,vehicleT.net,"tax-total")}
+        ${taxAuditBlock('taxFuelAudit','Fuel',fuelAudit)}
+        ${taxAuditBlock('taxAutoAudit','Other automobile costs',autoAudit)}
+        ${taxAuditBlock('taxVehicleAudit','Auto & transport total',vehicleAudit)}
+        <p class="tax-note">The purchase value of the company van itself is not treated here as a normal one-year running expense; handle fixed-asset purchase/depreciation separately at year end.</p>
+      </div>
+      <div class="card tax-card"><h2>VAT cross-check</h2>
+        ${taxLine("VAT collected on invoices",outputVat)}
+        ${taxLine("VAT general expenses",inputGeneral)}
+        ${taxLine("VAT fuel",inputFuel)}
+        ${taxLine("VAT automobile",inputAuto)}
+        ${taxLine("Total input VAT",inputVat)}
+        ${taxLine("VAT position",vatPosition,"tax-total")}
+        ${taxAuditBlock('taxOutputVatAudit','VAT collected on invoices',invAudit,'vat')}
+        ${taxAuditBlock('taxInputVatAudit','All input VAT',allExpenseAudit,'vat')}
+        <p class="tax-note">The VAT cross-check includes General + Fuel + Automobile. Custom VAT amounts are used exactly as entered.</p>
+      </div>
+      <div class="card tax-card"><h2>Data consistency check</h2>
+        <div class="tax-row"><span>Rows where stored Net differs from Gross − VAT</span><strong>${mismatches.length}</strong></div>
+        ${mismatches.length?`<div class="tax-audit-empty" style="border-color:#ffb86c;color:#ffcf99">These rows have an old/stale Net value in the workbook. The Income Tax page ignores that stale value and uses Gross − VAT instead. Open the audit tables above to see the rows marked in the Check column.</div>`:`<div class="tax-audit-empty">All stored Net values agree with Gross − VAT within €0.01.</div>`}
+        <p class="tax-note">This check is specifically designed to catch the kind of difference you noticed. It does not silently trust an old Net value.</p>
+      </div>
+      <div class="card tax-card"><h2>Balance / year-end items</h2>
+        <div class="tax-row"><span>Company van / fixed assets</span><strong>Check balance</strong></div>
+        <div class="tax-row"><span>Depreciation</span><strong>Enter from asset schedule</strong></div>
+        <div class="tax-row"><span>Bank / cash at 31 December</span><strong>Check bank statement</strong></div>
+        <div class="tax-row"><span>Outstanding customer invoices</span><strong>Check receivables</strong></div>
+        <div class="tax-row"><span>Outstanding supplier / tax debts</span><strong>Check liabilities</strong></div>
+        <div class="tax-row"><span>Private withdrawals / deposits</span><strong>Check separately</strong></div>
+        <p class="tax-note">These balance figures cannot be safely derived from the invoice and expense ledgers alone.</p>
+      </div>
+    </div>`;
+  $("taxYearSelect").onchange=e=>{host.dataset.year=e.target.value;renderIncomeTax()};
+  bindTaxAuditToggles(host);
+}
+
 function render(){
   dashboard();
   $("invoices").innerHTML=`<div class="card panel"><div class="panel-head"><h2>Invoices</h2><button class="green" onclick="openInvoice()">+ New invoice</button></div>${makeTable(data.invoices,["Invoice #","Date","Customer","Address","Work description","Gross incl. VAT","Parking","VAT","Net revenue","Status","Due date","Paid date"],"invoice")}</div>`;
@@ -457,7 +645,7 @@ function render(){
   $("autoFuel").innerHTML=`<div class="split">
     <div class="card panel"><div class="panel-head"><h2>Fuel expenses</h2><button class="green" onclick="openExpense('Fuel')">+ Add fuel</button></div>${makeTable(data.fuel,["Date","Supplier","Description","Gross","VAT","Net","Receipt/File"],"fuel")}</div>
     <div class="card panel"><div class="panel-head"><h2>Automobile expenses</h2><button class="green" onclick="openExpense('Automobile')">+ Add automobile</button></div>${makeTable(data.auto,["Date","Supplier","Description","Gross","VAT","Net","Receipt/File"],"auto")}</div>
-  </div>`;
+  </div>`;  renderIncomeTax();
 }
 function nextInvoiceNo(){
   const d=new Date(), y=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0");
@@ -474,14 +662,33 @@ function openInvoice(index=null){
   $("invGross").value=r["Gross incl. VAT"]||"";$("invParking").value=r.Parking||0;$("invOther").value=r["Other costs"]||0;$("invStatus").value=r.Status||"Unknown";
   $("invDue").value=isoDate(r["Due date"]);$("invPaid").value=isoDate(r["Paid date"]);$("invNotes").value=r.Notes||""; openModal("invoiceModal");
 }
+function requireFields(fields, message){
+  const missing=[];
+  fields.forEach(([id,label])=>{
+    const el=$(id);
+    const v=(el?.value??"").trim();
+    if(!v || ((el.type==="number") && !Number.isFinite(Number(v)))) missing.push(label);
+  });
+  if(missing.length){
+    alert(`${message}\n\nMissing: ${missing.join(", ")}`);
+    const first=fields.find(([id])=>{const el=$(id);const v=(el?.value??"").trim();return !v || ((el.type==="number")&&!Number.isFinite(Number(v))) });
+    if(first){$(first[0]).focus();}
+    return false;
+  }
+  return true;
+}
+
 function invoiceFromForm(){
   const gross=n($("invGross").value),rate=n($("invVatRate").value),vat=calcVat(gross,rate);
   return {"Invoice #":$("invNo").value.trim(),"Date":excelSerial($("invDate").value),"Customer":$("invCustomer").value.trim(),"Address":$("invAddress").value.trim(),
     "Work description":$("invDescription").value.trim(),"Contact":$("invContact").value.trim(),"Gross incl. VAT":gross,"Parking":n($("invParking").value),
-    "Other costs":n($("invOther").value),"VAT":vat,"Net revenue":gross-vat-n($("invParking").value)-n($("invOther").value),"Status":$("invStatus").value,
+    "Other costs":n($("invOther").value),"VAT":vat,"Net revenue":Math.max(0,gross-vat),"Status":$("invStatus").value,
     "Due date":excelSerial($("invDue").value),"Paid date":excelSerial($("invPaid").value),"Days overdue":"","Notes":$("invNotes").value.trim()};
 }
-$("saveInvoiceBtn").onclick=()=>{const r=invoiceFromForm();if(!r["Invoice #"]||!r.Date){alert("Invoice number and date are required.");return}
+$("saveInvoiceBtn").onclick=()=>{
+  if(!requireFields([["invNo","Invoice number"],["invDate","Date"],["invCustomer","Customer"],["invDescription","Work description"],["invGross","Gross incl. VAT"]],"Please complete the required invoice fields."))return;
+  const r=invoiceFromForm();
+  if(n(r["Gross incl. VAT"])<=0){alert("Gross incl. VAT must be greater than €0.");$("invGross").focus();return}
   if(editingInvoiceIndex===null)data.invoices.push(r);else data.invoices[editingInvoiceIndex]=r;persist();render();closeModal("invoiceModal")};
 $("previewInvoiceBtn").onclick=()=>showInvoicePreview(invoiceFromForm());
 function showInvoicePreview(r){
@@ -744,13 +951,27 @@ function openExpense(type="General",index=null){
   $("deleteExpenseBtn").hidden=index===null;
   $("expType").value=type;$("expDate").value=isoDate(r.Date)||new Date().toISOString().slice(0,10);$("expSupplier").value=r.Supplier||"";
   $("expCategory").value=r.Category||"";$("expDescription").value=r.Description||"";$("expGross").value=r.Gross||"";$("expReceipt").value=r["Receipt/File"]||"";
-  $("expReview").value=r.Review||"";$("expNotes").value=r.Notes||""; toggleCategory();openModal("expenseModal");
+  $("expReview").value=r.Review||"";$("expNotes").value=r.Notes||"";
+  const gross=n(r.Gross), storedVat=n(r.VAT);
+  const matches21=Math.abs(storedVat-calcVat(gross,21))<0.02;
+  const matches9=Math.abs(storedVat-calcVat(gross,9))<0.02;
+  const matches0=Math.abs(storedVat)<0.02;
+  if(index===null){$("expVatRate").value="21";$("expCustomVat").value="";}
+  else if(matches21){$("expVatRate").value="21";$("expCustomVat").value="";}
+  else if(matches9){$("expVatRate").value="9";$("expCustomVat").value="";}
+  else if(matches0){$("expVatRate").value="0";$("expCustomVat").value="";}
+  else {$("expVatRate").value="custom";$("expCustomVat").value=storedVat;}
+  toggleCategory();toggleCustomVat();openModal("expenseModal");
 }
 function toggleCategory(){$("categoryField").style.display=$("expType").value==="General"?"flex":"none"} $("expType").onchange=toggleCategory;
+function toggleCustomVat(){$("customVatField").style.display=$("expVatRate").value==="custom"?"flex":"none"} $("expVatRate").onchange=toggleCustomVat;
 $("saveExpenseBtn").onclick=()=>{
-  const type=$("expType").value,gross=n($("expGross").value),vat=calcVat(gross,$("expVatRate").value);
+  const type=$("expType").value,gross=n($("expGross").value);
+  const vat=$("expVatRate").value==="custom"?Math.max(0,n($("expCustomVat").value)):calcVat(gross,$("expVatRate").value);
   let r={Date:excelSerial($("expDate").value),Supplier:$("expSupplier").value.trim(),Description:$("expDescription").value.trim(),Gross:gross,VAT:vat,Net:gross-vat,"Receipt/File":$("expReceipt").value.trim()};
   let arr;
+  if(gross<=0){alert("Gross amount must be greater than €0.");$("expGross").focus();return}
+  if(n(r.VAT)<0 || n(r.VAT)>gross){alert("VAT amount must be between €0 and the gross amount.");return}
   if(type==="General"){r.Category=$("expCategory").value.trim();r.Review=$("expReview").value;r.Notes=$("expNotes").value.trim();arr=data.expenses}
   else arr=type==="Fuel"?data.fuel:data.auto;
   if(editingExpense.index===null||editingExpense.type!==type) arr.push(r); else arr[editingExpense.index]=r;
@@ -847,7 +1068,7 @@ function replaceDataSheets(){
   const netExp=sum(data.expenses,"Net")+sum(data.fuel,"Net")+sum(data.auto,"Net");
   workbook.Sheets["Dashboard"]=XLSX.utils.aoa_to_sheet([
     ["Renoweet Boekhouding Dashboard"],[],
-    ["Gross invoiced",grossRev],["Net revenue",netRev],["Gross expenses",grossExp],
+    ["Gross invoiced",grossRev],["Revenue ex VAT",netRev],["Gross expenses",grossExp],
     ["Net expenses",netExp],["Operating result",netRev-netExp],
     ["Fuel gross",sum(data.fuel,"Gross")],["Automobile gross",sum(data.auto,"Gross")]
   ]);
@@ -927,7 +1148,7 @@ function osInvoiceToBookkeeping(r){
     "Parking":parking,
     "Other costs":other,
     "VAT":vat,
-    "Net revenue":netBeforeVat-parking-other,
+    "Net revenue":netBeforeVat,
     "Status":r["Status"]==="Paid"?"Paid":"Open",
     "Due date":osDateToSerial(r["Due date"]),
     "Paid date":"",
