@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
 :root{
   --navy:#0b1020; --navy2:#11182a; --navy3:#172238; --green:#6fb24b;
@@ -194,6 +195,28 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
 @media(max-width:960px){.tax-grid{grid-template-columns:1fr}}
 @media(max-width:700px){.tax-head{align-items:stretch;flex-direction:column}.tax-card{padding:12px}.tax-audit-table{min-width:650px}}
 
+
+/* Bookkeeping quarterly/report upgrades */
+.report-actions{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.report-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}
+.report-summary .mini{padding:12px;border:1px solid var(--line);border-radius:11px;background:#0c1424}
+.report-summary .mini span{display:block;color:var(--muted);font-size:11px;margin-bottom:5px}
+.report-summary .mini strong{font-size:18px}
+.proof-box{border:1px dashed var(--line);border-radius:12px;padding:12px;background:#0c1424}
+.proof-status{margin-top:8px;font-size:12px;line-height:1.5;color:var(--muted)}
+.proof-ok{color:#bff2c1}.proof-warn{color:#ffcf99}
+.balance-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.balance-grid .field input{width:100%}
+.source-list{font-size:12px;color:var(--muted);line-height:1.55;margin-top:8px}
+.report-note{font-size:12px;color:var(--muted);line-height:1.55}
+@media(max-width:900px){.report-summary{grid-template-columns:1fr 1fr}.balance-grid{grid-template-columns:1fr}}
+.control-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}.control-grid .field{min-width:0}.health-list{display:grid;gap:8px;margin-top:10px}.health-item{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#0c1424;font-size:12px;line-height:1.45}.health-item.warn{border-color:#705820;background:#2a220f;color:#ffe0a2}.health-item.ok{border-color:#326d36;background:#132817;color:#c8f4c9}.lock-badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;border:1px solid var(--line);font-size:11px;font-weight:800}.lock-badge.closed{background:#3a171d;border-color:#6d2d37;color:#ffc0c8}.lock-badge.open{background:#17351a;border-color:#326d36;color:#bff2c1}.btw-breakdown{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}.btw-breakdown .mini{background:#0c1424}.inline-note{font-size:11px;color:var(--muted);line-height:1.45;margin-top:6px}@media(max-width:900px){.control-grid,.btw-breakdown{grid-template-columns:1fr 1fr}}@media(max-width:560px){.control-grid,.btw-breakdown{grid-template-columns:1fr}}
+@media(max-width:700px){
+ .toolbar .tabs{display:flex!important;grid-template-columns:none!important;overflow-x:auto!important}
+ .toolbar .tabs .tab{flex:0 0 auto!important;min-width:86px!important}
+ .report-summary{grid-template-columns:1fr 1fr}
+}
+
 </style>
 </head>
 <body class="locked">
@@ -231,6 +254,7 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
     <button class="secondary" id="newExpenseBtn">+ Add expense</button>
     <button class="primary" id="connectBtn">Connect OneDrive workbook</button>
     <button class="secondary" id="syncOSBtn">Sync Renoweet OS</button>
+    <button class="secondary" id="changeOSBtn">Change OS file</button>
     <button class="secondary" id="saveNowBtn" disabled>Save now</button>
     <button class="secondary" id="lockBtn">Lock</button>
   </div>
@@ -248,8 +272,10 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
     <div class="tabs">
       <button class="tab active" data-view="dashboard">Dashboard</button>
       <button class="tab" data-view="invoices">Invoices</button>
+      <button class="tab" data-view="customers">Customers</button>
       <button class="tab" data-view="expenses">Expenses</button>
       <button class="tab" data-view="autoFuel">Auto & Fuel</button>
+      <button class="tab" data-view="btwReport">BTW Report</button>
       <button class="tab" data-view="incomeTax">Income Tax</button>
     </div>
     <div class="status" id="status">Loading database…</div>
@@ -257,8 +283,10 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
 
   <section id="dashboard" class="view"></section>
   <section id="invoices" class="view" hidden></section>
+  <section id="customers" class="view" hidden></section>
   <section id="expenses" class="view" hidden></section>
   <section id="autoFuel" class="view" hidden></section>
+  <section id="btwReport" class="view" hidden></section>
   <section id="incomeTax" class="view" hidden></section>
   <div class="footer">Renoweet • Internal bookkeeping view • www.renoweet.nl</div>
 </main>
@@ -275,7 +303,7 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
         <div class="field full"><label>Address</label><input id="invAddress"></div>
         <div class="field full"><label>Work description *</label><textarea id="invDescription" required></textarea></div>
         <div class="field"><label>Gross incl. VAT (€) *</label><input id="invGross" type="number" step="0.01" min="0" required></div>
-        <div class="field"><label>VAT rate</label><select id="invVatRate"><option value="21">21%</option><option value="9">9%</option><option value="0">0%</option></select></div>
+        <div class="field"><label>VAT rate</label><select id="invVatRate"><option value="21">21%</option><option value="9">9%</option><option value="0">0%</option><option value="custom">Other / custom</option></select></div><div class="field" id="invCustomVatField" style="display:none"><label>Custom VAT (€)</label><input id="invCustomVat" type="number" step="0.01" min="0"></div>
         <div class="field"><label>Parking (€)</label><input id="invParking" type="number" step="0.01" value="0"></div>
         <div class="field"><label>Other costs (€)</label><input id="invOther" type="number" step="0.01" value="0"></div>
         <div class="field"><label>Status</label><select id="invStatus"><option>Unknown</option><option>Open</option><option>Paid</option></select></div>
@@ -309,7 +337,18 @@ body.locked header,body.locked main{filter:blur(8px);pointer-events:none;user-se
         <div class="field"><label>Gross (€) *</label><input id="expGross" type="number" step="0.01" min="0" required></div>
         <div class="field"><label>VAT</label><select id="expVatRate"><option value="21">21%</option><option value="9">9%</option><option value="0">0%</option><option value="custom">Custom VAT amount</option></select></div>
         <div class="field" id="customVatField" style="display:none"><label>Custom VAT (€)</label><input id="expCustomVat" type="number" step="0.01" min="0" placeholder="Enter VAT from receipt"></div>
-        <div class="field"><label>Receipt/File</label><input id="expReceipt"></div>
+        <div class="field full">
+          <label>Proof document / receipt *</label>
+          <div class="proof-box">
+            <div class="actions">
+              <button class="secondary" type="button" id="attachProofBtn">Attach PDF / image</button>
+              <button class="secondary" type="button" id="connectProofFolderBtn">Connect proof folder</button>
+            </div>
+            <input id="expProofFile" type="file" accept="image/*,.pdf,application/pdf">
+            <input id="expReceipt" type="hidden">
+            <div id="proofStatus" class="proof-status">Attach a PDF or image receipt. Images can be read automatically to suggest supplier, date, total and VAT.</div>
+          </div>
+        </div>
         <div class="field"><label>Review</label><select id="expReview"><option value=""></option><option>Yes</option><option>No</option></select></div>
         <div class="field full"><label>Notes</label><textarea id="expNotes"></textarea></div>
       </div>
@@ -341,8 +380,11 @@ const HANDLE_DB="RenoweetBookkeepingFS";
 const HANDLE_STORE="handles";
 const HANDLE_KEY="bookkeepingWorkbook";
 const OS_HANDLE_KEY="renoweetOSWorkbook";
-let workbook=null, fileHandle=null, osFileHandle=null, saveTimer=null, isSaving=false;
-let data={invoices:[],expenses:[],fuel:[],auto:[],deleted:[]}, editingInvoiceIndex=null, editingExpense={type:null,index:null};
+const PROOF_FOLDER_KEY="renoweetProofFolder";
+let workbook=null, fileHandle=null, osFileHandle=null, proofFolderHandle=null, saveTimer=null, isSaving=false, currentBookkeepingFileName="";
+let data={invoices:[],expenses:[],fuel:[],auto:[],deleted:[],control:{}}, editingInvoiceIndex=null, editingExpense={type:null,index:null};
+let pendingProofFile=null, proofExtracted=null;
+let annualTaxData=null;
 
 const euro=new Intl.NumberFormat("nl-NL",{style:"currency",currency:"EUR"});
 const dateFmt=new Intl.DateTimeFormat("nl-NL");
@@ -446,6 +488,16 @@ function scheduleAutoSave(){
 }
 
 function sheetRows(name){const ws=workbook.Sheets[name];return ws?XLSX.utils.sheet_to_json(ws,{defval:"",raw:true}):[]}
+function readAutoFuelRows(ws){
+  if(!ws)return {fuel:[],auto:[]};
+  const row7=XLSX.utils.sheet_to_json(ws,{header:1,range:"A7:S8",defval:"",raw:true})[0]||[];
+  const newLayout=String(row7[10]||"").trim().toLowerCase()==="date";
+  const fuelRange=newLayout?"A7:I107":"A7:G107", autoRange=newLayout?"K7:S107":"I7:O107";
+  return {
+    fuel:XLSX.utils.sheet_to_json(ws,{range:fuelRange,defval:"",raw:true}).filter(r=>r.Date||r.Supplier||r.Gross),
+    auto:XLSX.utils.sheet_to_json(ws,{range:autoRange,defval:"",raw:true}).filter(r=>r.Date||r.Supplier||r.Gross)
+  };
+}
 function normalize(){
   data.invoices=sheetRows("Invoices").filter(r=>r["Invoice #"]);
   // Revenue ex VAT includes parking/other amounts charged to the customer.
@@ -454,23 +506,22 @@ function normalize(){
   data.expenses=sheetRows("Expenses").filter(r=>r.Date||r.Supplier||r.Gross);
   data.deleted=sheetRows("Deleted").filter(r=>r["Deleted at"]||r.Type||r["Record ID"]);
   const ws=workbook.Sheets["Auto & Fuel"]; data.fuel=[];data.auto=[];
-  if(ws){
-    data.fuel=XLSX.utils.sheet_to_json(ws,{range:"A7:G107",defval:"",raw:true}).filter(r=>r.Date||r.Supplier||r.Gross);
-    data.auto=XLSX.utils.sheet_to_json(ws,{range:"I7:O107",defval:"",raw:true}).filter(r=>r.Date||r.Supplier||r.Gross);
-  }
+  if(ws){const af=readAutoFuelRows(ws);data.fuel=af.fuel;data.auto=af.auto}
+  const ctl=sheetRows("Bookkeeping Control");
+  data.control={}; ctl.forEach(r=>{const k=String(r.Key||"").trim();if(k)data.control[k]=r.Value??""});
 }
 function kpi(label,value,sub=""){return `<div class="card kpi"><div class="label">${esc(label)}</div><div class="value">${value}</div><div class="sub">${esc(sub)}</div></div>`}
 function summaryTable(rows){return `<div class="table-wrap" style="max-height:none"><table><thead><tr><th>Type</th><th>Gross</th><th>Net</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r[0])}</td><td class="money">${euro.format(r[1])}</td><td class="money">${euro.format(r[2])}</td></tr>`).join("")}</tbody></table></div>`}
 function makeTable(rows,cols,type){
   if(!rows.length)return `<div class="empty">No records found.</div>`;
-  return `<div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join("")}<th>Action</th></tr></thead><tbody>
+  return `<div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join("")}${type==="readonly"?"":"<th>Action</th>"}</tr></thead><tbody>
   ${rows.map((r,i)=>`<tr class="editable-row">${cols.map(c=>{
     let v=r[c]; if(/date/i.test(c))v=fmtDate(v);
-    if(["Gross","VAT","Net","Gross incl. VAT","Net revenue","Parking","Other costs"].includes(c))return `<td class="money">${euro.format(n(v))}</td>`;
+    if(["Gross","VAT","Net","Gross incl. VAT","Net revenue","Parking","Other costs","Ex VAT","Outstanding"].includes(c))return `<td class="money">${euro.format(n(v))}</td>`;
     if(c==="Status"){const cls=String(v).toLowerCase()==="paid"?"paid":"unknown";return `<td><span class="pill ${cls}">${esc(v||"Unknown")}</span></td>`}
     if(c==="Work description")return `<td class="workdesc-cell"><span class="workdesc-toggle" title="Click to expand/collapse" onclick="event.stopPropagation();this.classList.toggle('expanded')">${esc(v)}</span></td>`;
     return `<td>${esc(v)}</td>`}).join("")}
-    <td><button class="secondary" onclick="editRow('${type}',${i})">Edit</button></td></tr>`).join("")}</tbody></table></div>`;
+    ${type==="readonly"?"":`<td><button class="secondary" onclick="editRow('${type}',${i})">Edit</button></td>`}</tr>`).join("")}</tbody></table></div>`;
 }
 let dashboardCharts=[];
 function destroyDashboardCharts(){dashboardCharts.forEach(c=>{try{c.destroy()}catch(e){}});dashboardCharts=[]}
@@ -529,13 +580,213 @@ function dashboard(){
     <div class="card chart-card"><h2>Invoice status</h2><div class="chart-sub">Paid, open and unknown invoices</div><div class="chart-wrap"><canvas id="statusChart"></canvas></div></div>
     <div class="card panel"><div class="panel-head"><h2>Cost breakdown</h2></div>${summaryTable([
       ["General expenses",grossGeneral,netGeneral],["Fuel",grossFuel,netFuel],["Automobile",grossAuto,netAuto],["Overall",grossExpenses,netExpenses]])}</div>
-  </div>`;
+  </div>
+  <div class="card panel"><div class="panel-head"><div><h2>Bookkeeping control</h2><div class="chart-sub">Missing documents, invoice numbering and quarter-boundary checks.</div></div><span class="lock-badge ${periodIsClosed()?"closed":"open"}">${periodIsClosed()?"Period closed":"Period open"}</span></div>${renderBookkeepingHealth()}</div>`;
   requestAnimationFrame(renderDashboardCharts);
 }
+
+function quarterKeyFromName(name){
+  const s=String(name||"").toLowerCase();
+  let m=s.match(/\bq([1-4])\b/); if(m)return "Q"+m[1];
+  if(/jan[^a-z]*[-–]?[^a-z]*mar|jan.*mar/.test(s))return "Q1";
+  if(/apr.*jun/.test(s))return "Q2";
+  if(/jul.*sep/.test(s))return "Q3";
+  if(/oct.*dec/.test(s))return "Q4";
+  return "";
+}
+function quarterLabelFromName(name){
+  const q=quarterKeyFromName(name);
+  return q?`${q} • ${String(name||"").replace(/\.xlsx$/i,"")}`:(String(name||"").replace(/\.xlsx$/i,"")||"Current period");
+}
+function yearFromName(name){
+  const m=String(name||"").match(/\b(20\d{2})\b/); return m?Number(m[1]):null;
+}
+function quarterNoForDate(v){
+  const d=excelDate(v); return d?Math.floor(d.getMonth()/3)+1:null;
+}
+function rowsForConnectedPeriod(rows){
+  const q=quarterKeyFromName(currentBookkeepingFileName),y=yearFromName(currentBookkeepingFileName);
+  if(!q&&!y)return rows;
+  const qn=q?Number(q.slice(1)):null;
+  return rows.filter(r=>{
+    const d=excelDate(r.Date); if(!d)return false;
+    if(y&&d.getFullYear()!==y)return false;
+    if(qn&&quarterNoForDate(r.Date)!==qn)return false;
+    return true;
+  });
+}
+function connectedPeriodKey(){const q=quarterKeyFromName(currentBookkeepingFileName),y=yearFromName(currentBookkeepingFileName);return [y||"",q||""].filter(Boolean).join("-")||String(currentBookkeepingFileName||"").replace(/\.xlsx$/i,"")}
+function periodIsClosed(){return String(data.control.PeriodClosed||"").toLowerCase()==="yes"}
+function vatFilingStatus(){return String(data.control.BTWStatus||"Draft")||"Draft"}
+function periodDateMatches(v,fileName=currentBookkeepingFileName){const d=excelDate(v);if(!d)return true;const q=quarterKeyFromName(fileName),y=yearFromName(fileName);if(y&&d.getFullYear()!==y)return false;if(q&&quarterNoForDate(v)!==Number(q.slice(1)))return false;return true}
+function confirmPeriodDate(v,label="transaction"){if(periodDateMatches(v))return true;return confirm(`The ${label} date (${fmtDate(v)||"unknown"}) falls outside ${quarterLabelFromName(currentBookkeepingFileName)}.\n\nSave it in this quarter anyway?`)}
+function ensurePeriodEditable(action="change this period"){if(!periodIsClosed())return true;alert(`This bookkeeping period is CLOSED.\n\nReopen the period from the BTW Report before you ${action}.`);return false}
+function inferVatRate(row,isInvoice=false){const stored=row["VAT rate"];if(stored!==undefined&&stored!==null&&String(stored)!=="")return String(stored);const gross=n(isInvoice?row["Gross incl. VAT"]:row.Gross),vat=n(row.VAT);if(Math.abs(vat-calcVat(gross,21))<0.03)return "21";if(Math.abs(vat-calcVat(gross,9))<0.03)return "9";if(Math.abs(vat)<0.03)return "0";return "Other"}
+function rateLabel(rate){const s=String(rate||"");return ["21","9","0"].includes(s)?s+"%":"Other"}
+function allExpenseRows(){return [...data.expenses.map((r,i)=>({...r,_type:"General",_index:i})),...data.fuel.map((r,i)=>({...r,_type:"Fuel",_index:i})),...data.auto.map((r,i)=>({...r,_type:"Automobile",_index:i}))]}
+function expenseDuplicate(r,type,index){return allExpenseRows().find(x=>!(x._type===type&&x._index===index)&&isoDate(x.Date)===isoDate(r.Date)&&String(x.Supplier||"").trim().toLowerCase()===String(r.Supplier||"").trim().toLowerCase()&&Math.abs(n(x.Gross)-n(r.Gross))<0.01)}
+function invoiceSequenceIssues(rows=data.invoices){const duplicates=[],map=new Map();rows.forEach(r=>{const k=String(r["Invoice #"]||"").trim();if(!k)return;map.set(k,(map.get(k)||0)+1)});map.forEach((v,k)=>{if(v>1)duplicates.push(k)});const byYear={};rows.forEach(r=>{const y=rowYear(r);const m=String(r["Invoice #"]||"").match(/(\d{3})$/);if(y&&m)(byYear[y]??=[]).push(Number(m[1]))});const gaps=[];Object.entries(byYear).forEach(([y,a])=>{const u=[...new Set(a)].sort((x,z)=>x-z);for(let i=1;i<u.length;i++)if(u[i]-u[i-1]>1)gaps.push(`${y}: ${u[i-1]} → ${u[i]}`)});return {duplicates,gaps}}
+function proofHealth(){const rows=allExpenseRows(),missing=rows.filter(r=>!String(r["Receipt/File"]||"").trim()),mismatch=rows.filter(r=>String(r["Proof Check"]||"").toLowerCase()==="mismatch");return {missing,mismatch}}
+function currentHealthIssues(){const proof=proofHealth(),seq=invoiceSequenceIssues();const missingAddr=data.invoices.filter(r=>!String(r.Address||"").trim());const badDates=[...data.invoices.map(r=>({kind:"Invoice",r})),...allExpenseRows().map(r=>({kind:"Expense",r}))].filter(x=>!periodDateMatches(x.r.Date));return {proof,seq,missingAddr,badDates}}
+function renderBookkeepingHealth(){const h=currentHealthIssues();const items=[];if(h.proof.missing.length)items.push(`${h.proof.missing.length} expense(s) missing proof`);if(h.proof.mismatch.length)items.push(`${h.proof.mismatch.length} receipt OCR total/VAT mismatch warning(s)`);if(h.missingAddr.length)items.push(`${h.missingAddr.length} invoice(s) missing customer address`);if(h.seq.duplicates.length)items.push(`Duplicate invoice number(s): ${h.seq.duplicates.join(", ")}`);if(h.seq.gaps.length)items.push(`Invoice sequence gap(s): ${h.seq.gaps.join("; ")}`);if(h.badDates.length)items.push(`${h.badDates.length} transaction(s) dated outside the connected period`);return items.length?`<div class="health-list">${items.map(x=>`<div class="health-item warn">⚠ ${esc(x)}</div>`).join("")}</div>`:`<div class="health-list"><div class="health-item ok">✓ No bookkeeping control warnings found for this period.</div></div>`}
+function getLogoSrc(){const img=document.querySelector(".brand img");return img?img.src:""}
+function printHtmlReport(title,subtitle,bodyHtml){
+  const w=window.open("","_blank");
+  if(!w){alert("Allow pop-ups to print this report.");return}
+  const logo=getLogoSrc();
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
+    @page{size:A4;margin:13mm}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0}
+    .head{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:14px}
+    .brandx{display:flex;align-items:center;gap:10px}.brandx img{width:48px;height:48px;object-fit:contain}.brandx b{font-size:24px}
+    h1{font-size:18px;margin:0}h2{font-size:14px;margin:18px 0 7px}.sub{font-size:11px;color:#555;margin-top:3px}
+    table{width:100%;border-collapse:collapse;font-size:10px;margin:7px 0 14px}th,td{border-bottom:1px solid #ddd;padding:5px;text-align:left;vertical-align:top}
+    th{background:#f2f4f6}.money{text-align:right;white-space:nowrap}.sum{font-weight:700}
+    .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:12px}.mini{border:1px solid #ccc;padding:8px}.mini span{display:block;font-size:9px;color:#555}.mini b{font-size:14px}
+    .note{font-size:9px;color:#555;line-height:1.4}.footer{margin-top:20px;border-top:1px solid #ddd;padding-top:7px;font-size:9px;color:#555}
+    @media print{button{display:none}}
+  </style></head><body>
+  <div class="head"><div class="brandx"><img src="${logo}"><div><b>Renoweet</b><div class="sub">Bookkeeping • KVK 97746312 • BTW NL005285311B07</div></div></div><div style="text-align:right"><h1>${esc(title)}</h1><div class="sub">${esc(subtitle||"")}</div></div></div>
+  ${bodyHtml}<div class="footer">Renoweet • Hiridostraat 2c65, 1101 CW Amsterdam • renoweet@hotmail.com • +31 6 43865003 • www.renoweet.nl</div>
+  <script>window.onload=()=>setTimeout(()=>window.print(),150)<\/script></body></html>`);
+  w.document.close();
+}
+function rowsToPrintTable(rows,cols,moneyCols=[]){
+  if(!rows.length)return `<p class="note">No records.</p>`;
+  return `<table><thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>{
+    let v=r[c]??""; if(/date/i.test(c))v=fmtDate(v);
+    return `<td class="${moneyCols.includes(c)?"money":""}">${moneyCols.includes(c)?euro.format(n(v)):esc(v)}</td>`;
+  }).join("")}</tr>`).join("")}</tbody></table>`;
+}
+function getCustomers(){
+  const map=new Map();
+  data.invoices.forEach(r=>{
+    const name=String(r.Customer||"").trim(); if(!name)return;
+    const key=name.toLowerCase();
+    const c=map.get(key)||{Customer:name,Phone:"",Email:"",Address:"",Invoices:0,Gross:0,Outstanding:0};
+    const contacts=getInvoiceContacts(r);
+    c.Phone=r.Phone||contacts.phone||c.Phone;
+    c.Email=r.Email||contacts.email||c.Email;
+    c.Address=r.Address||c.Address;
+    c.Invoices++;
+    c.Gross+=n(r["Gross incl. VAT"]);
+    if(String(r.Status||"").toLowerCase()==="open")c.Outstanding+=n(r["Gross incl. VAT"]);
+    map.set(key,c);
+  });
+  return [...map.values()].sort((a,b)=>a.Customer.localeCompare(b.Customer));
+}
+function printInvoices(){
+  const rows=data.invoices;
+  const body=`<div class="summary">
+   <div class="mini"><span>Invoices</span><b>${rows.length}</b></div>
+   <div class="mini"><span>Gross incl. VAT</span><b>${euro.format(sum(rows,"Gross incl. VAT"))}</b></div>
+   <div class="mini"><span>VAT</span><b>${euro.format(sum(rows,"VAT"))}</b></div>
+   <div class="mini"><span>Revenue ex VAT</span><b>${euro.format(sum(rows,"Net revenue"))}</b></div></div>
+   ${rowsToPrintTable(rows,["Invoice #","Date","Customer","Work description","Gross incl. VAT","VAT","Net revenue","Status"],["Gross incl. VAT","VAT","Net revenue"])}`;
+  printHtmlReport("Invoice register",quarterLabelFromName(currentBookkeepingFileName),body);
+}
+function printCustomers(){
+  const rows=getCustomers();
+  const body=`<div class="summary"><div class="mini"><span>Customers</span><b>${rows.length}</b></div><div class="mini"><span>Invoices</span><b>${rows.reduce((a,r)=>a+r.Invoices,0)}</b></div><div class="mini"><span>Total invoiced</span><b>${euro.format(rows.reduce((a,r)=>a+r.Gross,0))}</b></div><div class="mini"><span>Outstanding</span><b>${euro.format(rows.reduce((a,r)=>a+r.Outstanding,0))}</b></div></div>${rowsToPrintTable(rows,["Customer","Phone","Email","Address","Invoices","Gross","Outstanding"],["Gross","Outstanding"])}`;
+  printHtmlReport("Customer register",quarterLabelFromName(currentBookkeepingFileName),body);
+}
+function printExpenses(){
+  const rows=data.expenses;
+  const body=`<div class="summary"><div class="mini"><span>Expenses</span><b>${rows.length}</b></div><div class="mini"><span>Gross</span><b>${euro.format(sum(rows,"Gross"))}</b></div><div class="mini"><span>Input VAT</span><b>${euro.format(sum(rows,"VAT"))}</b></div><div class="mini"><span>Ex VAT</span><b>${euro.format(sum(rows,"Net"))}</b></div></div>${rowsToPrintTable(rows,["Date","Supplier","Category","Description","Gross","VAT","Net","Receipt/File"],["Gross","VAT","Net"])}`;
+  printHtmlReport("Expense register",quarterLabelFromName(currentBookkeepingFileName),body);
+}
+async function connectProofFolder(){
+  if(!("showDirectoryPicker" in window)){alert("Direct proof storage needs Edge or Chrome with folder access.");return null}
+  try{
+    const root=await window.showDirectoryPicker({mode:"readwrite"});
+    if(!(await verifyPermission(root,true)))return null;
+    proofFolderHandle=await root.getDirectoryHandle("Renoweet Bookkeeping Proof",{create:true});
+    await rememberHandle(proofFolderHandle,PROOF_FOLDER_KEY);
+    updateProofStatus();
+    return proofFolderHandle;
+  }catch(e){if(e.name!=="AbortError")alert("Could not connect proof folder: "+e.message);return null}
+}
+function uniqueProofName(file,type){
+  const ext=(file.name.match(/\.[^.]+$/)||[""])[0].toLowerCase();
+  return `EXP-${Date.now()}-${crypto.randomUUID().slice(0,8)}-${type}${ext}`;
+}
+async function storeProofFile(file,type){
+  if(!proofFolderHandle){
+    const remembered=await getRememberedHandle(PROOF_FOLDER_KEY);
+    if(remembered && await verifyPermission(remembered,false))proofFolderHandle=remembered;
+  }
+  if(!proofFolderHandle){
+    alert("Connect the proof folder first. The receipt/image must be stored before the expense can be saved.");
+    return "";
+  }
+  if(!(await verifyPermission(proofFolderHandle,true))){alert("Permission to the proof folder is required.");return ""}
+  const name=uniqueProofName(file,type);
+  const fh=await proofFolderHandle.getFileHandle(name,{create:true});
+  const wr=await fh.createWritable(); await wr.write(await file.arrayBuffer()); await wr.close();
+  return name;
+}
+function parseOcrMoney(s){return Number(String(s||"").replace(/[^\d,.-]/g,"").replace(/\.(?=\d{3}\b)/g,"").replace(",","."))||0}
+function parseProofText(text){
+  const lines=String(text||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  const supplier=(lines.find(x=>/[A-Za-zÀ-ÿ]{3}/.test(x) && !/factuur|bon|receipt|kassa|datum|date/i.test(x))||"").slice(0,80);
+  let date="";
+  const dm=String(text).match(/\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](20\d{2}|\d{2})\b/);
+  if(dm){let y=dm[3];if(y.length===2)y="20"+y;date=`${y}-${dm[2].padStart(2,"0")}-${dm[1].padStart(2,"0")}`}
+  const amounts=[...String(text).matchAll(/(?:€\s*)?(\d{1,5}[.,]\d{2})/g)].map(m=>parseOcrMoney(m[1])).filter(x=>x>0);
+  const gross=amounts.length?Math.max(...amounts):0;
+  let vat=0;
+  const vm=String(text).match(/(?:btw|vat)[^\d]{0,18}(\d{1,5}[.,]\d{2})/i);
+  if(vm)vat=parseOcrMoney(vm[1]);
+  return {supplier,date,gross,vat,text};
+}
+async function analyzeProofFile(file,applySuggestions=true){
+  proofExtracted=null;
+  if(!file)return;
+  if(file.type.startsWith("image/")){
+    $("proofStatus").innerHTML=`Reading <b>${esc(file.name)}</b>…`;
+    try{
+      if(!window.Tesseract)throw new Error("OCR library not loaded");
+      const res=await Tesseract.recognize(file,"eng+nld",{logger:m=>{if(m.status==="recognizing text")$("proofStatus").textContent=`Reading receipt… ${Math.round((m.progress||0)*100)}%`}});
+      proofExtracted=parseProofText(res.data.text);
+      if(applySuggestions){
+        if(proofExtracted.supplier && !$("expSupplier").value.trim())$("expSupplier").value=proofExtracted.supplier;
+        if(proofExtracted.date && !$("expDate").value)$("expDate").value=proofExtracted.date;
+        if(proofExtracted.gross && !n($("expGross").value))$("expGross").value=proofExtracted.gross.toFixed(2);
+        if(proofExtracted.vat){
+          $("expVatRate").value="custom"; $("expCustomVat").value=proofExtracted.vat.toFixed(2); toggleCustomVat();
+        }
+      }
+      updateProofStatus();
+    }catch(e){
+      console.warn(e); $("proofStatus").innerHTML=`<span class="proof-warn">⚠ ${esc(file.name)} attached. Automatic reading failed; enter the values manually.</span>`;
+    }
+  }else{
+    $("proofStatus").innerHTML=`<span class="proof-ok">✓ PDF attached: ${esc(file.name)}</span> • PDF values are not auto-read; verify the total and VAT manually.`;
+  }
+}
+function updateProofStatus(){
+  const existing=$("expReceipt")?.value||"";
+  if(!pendingProofFile && !proofExtracted){
+    $("proofStatus").innerHTML=existing?`<span class="proof-ok">✓ Stored proof: ${esc(existing)}</span>`:`Attach a PDF or image receipt.`;
+    return;
+  }
+  if(!proofExtracted){
+    if(pendingProofFile)$("proofStatus").innerHTML=`<span class="proof-ok">✓ Attached: ${esc(pendingProofFile.name)}</span>`;
+    return;
+  }
+  const gross=n($("expGross").value), vat=$("expVatRate").value==="custom"?n($("expCustomVat").value):calcVat(gross,$("expVatRate").value);
+  const gOk=!proofExtracted.gross||Math.abs(gross-proofExtracted.gross)<0.03;
+  const vOk=!proofExtracted.vat||Math.abs(vat-proofExtracted.vat)<0.03;
+  $("proofStatus").innerHTML=`<b>${esc(pendingProofFile?.name||existing)}</b><br>
+    ${proofExtracted.gross?`${gOk?'<span class="proof-ok">✓':'<span class="proof-warn">⚠'} Total: OCR ${euro.format(proofExtracted.gross)} vs entered ${euro.format(gross)}</span><br>`:""}
+    ${proofExtracted.vat?`${vOk?'<span class="proof-ok">✓':'<span class="proof-warn">⚠'} VAT: OCR ${euro.format(proofExtracted.vat)} vs entered ${euro.format(vat)}</span>`:""}
+    ${(!gOk||!vOk)?'<br><span class="proof-warn">Warning only — saving is allowed after you verify the receipt.</span>':""}`;
+}
+
 function rowYear(r){const d=excelDate(r.Date);return d?d.getFullYear():null}
+function taxSourceData(){return annualTaxData||data}
 function taxYearOptions(){
-  const years=new Set();
-  [...data.invoices,...data.expenses,...data.fuel,...data.auto].forEach(r=>{const y=rowYear(r);if(y)years.add(y)});
+  const src=taxSourceData(),years=new Set();
+  [...src.invoices,...src.expenses,...src.fuel,...src.auto].forEach(r=>{const y=rowYear(r);if(y)years.add(y)});
   years.add(new Date().getFullYear());
   return [...years].sort((a,b)=>b-a);
 }
@@ -549,7 +800,7 @@ function taxAuditRows(rows,source){
     const hasStored=storedRaw!==undefined&&storedRaw!==""&&storedRaw!==null;
     const storedNet=hasStored?n(storedRaw):calculatedNet;
     return {
-      source, i, date:fmtDate(r.Date), party:r.Supplier||r.Customer||"",
+      source:r["Source File"]||source, i, date:fmtDate(r.Date), party:r.Supplier||r.Customer||"",
       category:r.Category||"", description:r.Description||r["Work description"]||"",
       gross, vat, net:calculatedNet, storedNet, mismatch:hasStored&&Math.abs(storedNet-calculatedNet)>0.01
     };
@@ -578,11 +829,12 @@ function renderIncomeTax(){
   const years=taxYearOptions();
   const selected=Number(host.dataset.year)||years[0]||new Date().getFullYear();
   host.dataset.year=selected;
-  const yearInvoices=taxRowsForYear(data.invoices,selected);
+  const src=taxSourceData();
+  const yearInvoices=taxRowsForYear(src.invoices,selected);
   const inv=yearInvoices.filter(r=>String(r.Status||'').toLowerCase()==='paid');
   const openInv=yearInvoices.filter(r=>String(r.Status||'').toLowerCase()==='open');
   const unknownInv=yearInvoices.filter(r=>!['paid','open'].includes(String(r.Status||'').toLowerCase()));
-  const general=taxRowsForYear(data.expenses,selected), fuel=taxRowsForYear(data.fuel,selected), auto=taxRowsForYear(data.auto,selected);
+  const general=taxRowsForYear(src.expenses,selected), fuel=taxRowsForYear(src.fuel,selected), auto=taxRowsForYear(src.auto,selected);
   const invAudit=taxAuditRows(inv,"Paid invoices"), openInvAudit=taxAuditRows(openInv,"Open invoices"), generalAudit=taxAuditRows(general,"General"), fuelAudit=taxAuditRows(fuel,"Fuel"), autoAudit=taxAuditRows(auto,"Automobile");
   const vehicleAudit=[...fuelAudit,...autoAudit], allExpenseAudit=[...generalAudit,...vehicleAudit];
   const invT=taxTotals(invAudit), generalT=taxTotals(generalAudit), fuelT=taxTotals(fuelAudit), autoT=taxTotals(autoAudit), vehicleT=taxTotals(vehicleAudit), allT=taxTotals(allExpenseAudit);
@@ -592,8 +844,8 @@ function renderIncomeTax(){
   const mismatches=[...invAudit,...allExpenseAudit].filter(r=>r.mismatch);
   host.innerHTML=`
     <div class="card panel">
-      <div class="tax-head"><div><h2>Income tax return helper</h2><div class="chart-sub">All ex-VAT figures on this page are recalculated directly as Gross − VAT, so stale Net values in the XLSX cannot change the tax totals. Gross, VAT and ex-VAT are shown side by side for control.</div></div>
-      <label class="field" style="margin:0"><span style="font-size:12px;color:var(--muted)">Tax year</span><select id="taxYearSelect">${years.map(y=>`<option ${y===selected?'selected':''}>${y}</option>`).join('')}</select></label></div>
+      <div class="tax-head"><div><h2>Income tax return helper</h2><div class="chart-sub">Load all quarterly bookkeeping XLSX files for the year. They are merged in memory for this report only; your quarterly files remain separate and unchanged.</div><div class="source-list">${annualTaxData?`Annual sources: ${annualTaxData.sources.map(esc).join(" • ")}`:`Using current workbook only: ${esc(currentBookkeepingFileName||"not connected")}`}</div></div>
+      <div class="actions"><button class="secondary" type="button" onclick="loadAnnualTaxFiles()">Load quarterly files</button>${annualTaxData?`<button class="secondary" type="button" onclick="clearAnnualTaxFiles()">Use current file only</button>`:""}<button class="secondary" type="button" onclick="runYearEndCheck(false)">Year-end check</button><button class="secondary" type="button" onclick="printIncomeTaxReport()">Print report</button><label class="field" style="margin:0"><span style="font-size:12px;color:var(--muted)">Tax year</span><select id="taxYearSelect">${years.map(y=>`<option ${y===selected?'selected':''}>${y}</option>`).join('')}</select></label></div></div>
     </div>
     <div class="tax-grid" style="margin-top:12px">
       <div class="card tax-card"><h2>Profit & loss</h2>
@@ -640,28 +892,139 @@ function renderIncomeTax(){
         ${mismatches.length?`<div class="tax-audit-empty" style="border-color:#ffb86c;color:#ffcf99">These rows have an old/stale Net value in the workbook. The Income Tax page ignores that stale value and uses Gross − VAT instead. Open the audit tables above to see the rows marked in the Check column.</div>`:`<div class="tax-audit-empty">All stored Net values agree with Gross − VAT within €0.01.</div>`}
         <p class="tax-note">This check is specifically designed to catch the kind of difference you noticed. It does not silently trust an old Net value.</p>
       </div>
-      <div class="card tax-card"><h2>Balance / year-end items</h2>
-        <div class="tax-row"><span>Company van / fixed assets</span><strong>Check balance</strong></div>
-        <div class="tax-row"><span>Depreciation</span><strong>Enter from asset schedule</strong></div>
-        <div class="tax-row"><span>Bank / cash at 31 December</span><strong>Check bank statement</strong></div>
-        <div class="tax-row"><span>Outstanding customer invoices</span><strong>Check receivables</strong></div>
-        <div class="tax-row"><span>Outstanding supplier / tax debts</span><strong>Check liabilities</strong></div>
-        <div class="tax-row"><span>Private withdrawals / deposits</span><strong>Check separately</strong></div>
-        <p class="tax-note">These balance figures cannot be safely derived from the invoice and expense ledgers alone.</p>
+      <div class="card tax-card"><h2>Balance sheet at year end</h2>
+        <div class="balance-grid">
+          <div class="field"><label>Bank balance (€)</label><input id="balBank" type="number" step="0.01" value="${balanceInput(selected,"bank")}"></div>
+          <div class="field"><label>Cash (€)</label><input id="balCash" type="number" step="0.01" value="${balanceInput(selected,"cash")}"></div>
+          <div class="field"><label>Fixed assets / van book value (€)</label><input id="balAssets" type="number" step="0.01" value="${balanceInput(selected,"assets")}"></div>
+          <div class="field"><label>Other assets (€)</label><input id="balOtherAssets" type="number" step="0.01" value="${balanceInput(selected,"otherAssets")}"></div>
+          <div class="field"><label>Loans / finance payable (€)</label><input id="balLoans" type="number" step="0.01" value="${balanceInput(selected,"loans")}"></div>
+          <div class="field"><label>Other liabilities (€)</label><input id="balOtherLiabilities" type="number" step="0.01" value="${balanceInput(selected,"otherLiabilities")}"></div>
+        </div>
+        <div id="balanceSummary"></div>
+        <p class="tax-note">Open invoices are used as trade receivables. Bank and cash are entered by you from the 31 December balances. Equity is calculated as the balancing figure: total assets − total liabilities.</p>
       </div>
     </div>`;
   $("taxYearSelect").onchange=e=>{host.dataset.year=e.target.value;renderIncomeTax()};
+  ["balBank","balCash","balAssets","balOtherAssets","balLoans","balOtherLiabilities"].forEach(id=>{const el=$(id);if(el)el.oninput=()=>saveBalanceInputs(selected)});
+  renderBalanceSummary(selected);
   bindTaxAuditToggles(host);
+}
+
+
+async function loadAnnualTaxFiles(){
+  if(!("showOpenFilePicker" in window)){alert("Loading quarterly files needs Edge or Chrome.");return}
+  try{
+    const handles=await window.showOpenFilePicker({multiple:true,types:[{description:"Quarterly bookkeeping XLSX files",accept:{"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":[".xlsx"]}}]});
+    if(!handles.length)return;
+    const merged={invoices:[],expenses:[],fuel:[],auto:[],sources:[],audit:{duplicateInvoices:[],sourcePeriods:[],outOfPeriod:[]}}, seenInv=new Map();
+    for(const h of handles){
+      if(!(await verifyPermission(h,false))&&!(await verifyPermission(h,true)))continue;
+      const f=await h.getFile(),wb=XLSX.read(await f.arrayBuffer(),{type:"array",cellDates:false});merged.sources.push(f.name);merged.audit.sourcePeriods.push({name:f.name,q:quarterKeyFromName(f.name),year:yearFromName(f.name)});
+      const rows=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n],{defval:"",raw:true}):[];
+      rows("Invoices").filter(r=>r["Invoice #"]).forEach(r=>{const k=String(r["Invoice #"]).trim();if(seenInv.has(k)){merged.audit.duplicateInvoices.push({invoice:k,files:[seenInv.get(k),f.name]})}else{seenInv.set(k,f.name);merged.invoices.push({...r,"Source File":f.name})}if(!periodDateMatches(r.Date,f.name))merged.audit.outOfPeriod.push({kind:"Invoice",source:f.name,date:r.Date,label:k})});
+      rows("Expenses").filter(r=>r.Date||r.Supplier||r.Gross).forEach(r=>{merged.expenses.push({...r,"Source File":f.name});if(!periodDateMatches(r.Date,f.name))merged.audit.outOfPeriod.push({kind:"Expense",source:f.name,date:r.Date,label:r.Supplier||r.Description||""})});
+      const af=readAutoFuelRows(wb.Sheets["Auto & Fuel"]);
+      af.fuel.forEach(r=>{merged.fuel.push({...r,"Source File":f.name});if(!periodDateMatches(r.Date,f.name))merged.audit.outOfPeriod.push({kind:"Fuel",source:f.name,date:r.Date,label:r.Supplier||""})});
+      af.auto.forEach(r=>{merged.auto.push({...r,"Source File":f.name});if(!periodDateMatches(r.Date,f.name))merged.audit.outOfPeriod.push({kind:"Automobile",source:f.name,date:r.Date,label:r.Supplier||""})});
+    }
+    annualTaxData=merged; renderIncomeTax();
+  }catch(e){if(e.name!=="AbortError")alert("Could not load annual files: "+e.message)}
+}
+function clearAnnualTaxFiles(){annualTaxData=null;renderIncomeTax()}
+function balanceStorageKey(year){return `renoweet_balance_${year}`}
+function getBalanceInputs(year){try{return JSON.parse(localStorage.getItem(balanceStorageKey(year))||"{}")}catch{return {}}}
+function balanceInput(year,key){return n(getBalanceInputs(year)[key])||""}
+function saveBalanceInputs(year){
+  const obj={bank:n($("balBank")?.value),cash:n($("balCash")?.value),assets:n($("balAssets")?.value),otherAssets:n($("balOtherAssets")?.value),loans:n($("balLoans")?.value),otherLiabilities:n($("balOtherLiabilities")?.value)};
+  localStorage.setItem(balanceStorageKey(year),JSON.stringify(obj)); renderBalanceSummary(year);
+}
+function renderBalanceSummary(year){
+  const host=$("balanceSummary"); if(!host)return;
+  const b=getBalanceInputs(year),src=taxSourceData();
+  const open=taxRowsForYear(src.invoices,year).filter(r=>String(r.Status||"").toLowerCase()==="open");
+  const receivables=sum(open,"Gross incl. VAT");
+  const bank=n(b.bank),cash=n(b.cash),assets=n(b.assets),otherAssets=n(b.otherAssets),loans=n(b.loans),otherLiabilities=n(b.otherLiabilities);
+  const totalAssets=bank+cash+receivables+assets+otherAssets,totalLiabilities=loans+otherLiabilities,equity=totalAssets-totalLiabilities;
+  host.innerHTML=`<div style="margin-top:12px">${taxLine("Trade receivables (open invoices)",receivables)}${taxLine("Total assets",totalAssets,"tax-total")}${taxLine("Total liabilities",totalLiabilities)}${taxLine("Calculated equity / balancing figure",equity,"tax-total")}</div>`;
+}
+function yearEndIssues(){
+  const src=taxSourceData(),year=Number($("incomeTax")?.dataset.year)||new Date().getFullYear(),issues=[];
+  if(annualTaxData){const found=new Set((annualTaxData.audit?.sourcePeriods||[]).filter(x=>x.year===year&&x.q).map(x=>x.q));const missing=["Q1","Q2","Q3","Q4"].filter(q=>!found.has(q));if(missing.length)issues.push(`Missing quarterly file(s) for ${year}: ${missing.join(", ")}`);if(annualTaxData.audit?.duplicateInvoices?.length)issues.push(`${annualTaxData.audit.duplicateInvoices.length} duplicate invoice number(s) found across loaded files`);if(annualTaxData.audit?.outOfPeriod?.length)issues.push(`${annualTaxData.audit.outOfPeriod.length} transaction(s) dated outside their source file quarter`)}else issues.push("Annual check is using only the current workbook. Load Q1–Q4 for a complete year-end check.");
+  const inv=taxRowsForYear(src.invoices,year),expenses=[...taxRowsForYear(src.expenses,year),...taxRowsForYear(src.fuel,year),...taxRowsForYear(src.auto,year)];
+  const seq=invoiceSequenceIssues(inv);if(seq.duplicates.length)issues.push(`Duplicate invoice numbers: ${seq.duplicates.join(", ")}`);if(seq.gaps.length)issues.push(`Invoice sequence gaps: ${seq.gaps.join("; ")}`);
+  const missingProof=expenses.filter(r=>!String(r["Receipt/File"]||"").trim());if(missingProof.length)issues.push(`${missingProof.length} annual expense(s) missing proof`);
+  const proofMismatch=expenses.filter(r=>String(r["Proof Check"]||"").toLowerCase()==="mismatch");if(proofMismatch.length)issues.push(`${proofMismatch.length} receipt proof mismatch warning(s)`);
+  const vatOdd=[...inv.map(r=>({r,invoice:true})),...expenses.map(r=>({r,invoice:false}))].filter(x=>inferVatRate(x.r,x.invoice)==="Other");if(vatOdd.length)issues.push(`${vatOdd.length} transaction(s) use custom/Other VAT and need review`);
+  const open=inv.filter(r=>String(r.Status||"").toLowerCase()==="open");if(open.length)issues.push(`${open.length} customer invoice(s) still open at year-end`);
+  const b=getBalanceInputs(year),missingBal=["bank","cash","assets","otherAssets","loans","otherLiabilities"].filter(k=>b[k]===undefined||b[k]===null||String(b[k])==="");if(missingBal.length)issues.push(`Balance sheet fields not completed: ${missingBal.join(", ")}`);
+  return {year,issues};
+}
+function runYearEndCheck(forPrint=false){const r=yearEndIssues();const text=r.issues.length?`Year-end check for ${r.year}:\n\n⚠ ${r.issues.join("\n⚠ ")}`:`Year-end check for ${r.year}:\n\n✓ No control warnings found.`;if(!forPrint){alert(text);return r.issues.length===0}return r.issues.length?confirm(text+"\n\nPrint the report anyway?"):true}
+function printIncomeTaxReport(){
+  if(!runYearEndCheck(true))return;
+  const host=$("incomeTax"); if(!host)return;
+  const clone=host.cloneNode(true);
+  clone.querySelectorAll("button,select,input").forEach(el=>{
+    if(el.tagName==="INPUT"){const s=document.createElement("span");s.textContent=el.value?euro.format(n(el.value)):"";el.replaceWith(s)}
+    else el.remove();
+  });
+  clone.querySelectorAll("[hidden]").forEach(x=>x.remove());
+  printHtmlReport("Income tax annual report",`Year ${host.dataset.year||new Date().getFullYear()}`,clone.innerHTML);
+}
+function vatRateBreakdown(rows,isInvoice){
+  const out={"21":{net:0,vat:0,gross:0,count:0},"9":{net:0,vat:0,gross:0,count:0},"0":{net:0,vat:0,gross:0,count:0},"Other":{net:0,vat:0,gross:0,count:0}};
+  rows.forEach(r=>{let rate=inferVatRate(r,isInvoice);if(!out[rate])rate="Other";const gross=n(isInvoice?r["Gross incl. VAT"]:r.Gross),vat=n(r.VAT);out[rate].gross+=gross;out[rate].vat+=vat;out[rate].net+=gross-vat;out[rate].count++});return out;
+}
+function btwControlHtml(){
+  const closed=periodIsClosed(),status=vatFilingStatus();
+  return `<div class="card panel"><div class="panel-head"><div><h2>Period control</h2><div class="chart-sub">Close the quarter after review/filing. Closed periods cannot be edited or synced until deliberately reopened.</div></div><span class="lock-badge ${closed?'closed':'open'}">${closed?'Period closed':'Period open'}</span></div>
+  <div class="control-grid">
+    <div class="field"><label>BTW filing status</label><select id="btwFilingStatus"><option ${status==='Draft'?'selected':''}>Draft</option><option ${status==='Checked'?'selected':''}>Checked</option><option ${status==='Filed'?'selected':''}>Filed</option><option ${status==='Paid'?'selected':''}>Paid</option><option ${status==='Refund received'?'selected':''}>Refund received</option></select></div>
+    <div class="field"><label>Filed / payment date</label><input id="btwFiledDate" type="date" value="${esc(String(data.control.BTWFiledDate||''))}"></div>
+    <div class="field"><label>Actual paid / refunded (€)</label><input id="btwActualAmount" type="number" step="0.01" value="${esc(String(data.control.BTWActualAmount||''))}"></div>
+    <div class="field"><label>Filing note</label><input id="btwFilingNote" value="${esc(String(data.control.BTWNote||''))}" placeholder="Reference / correction note"></div>
+  </div><div class="actions" style="margin-top:12px"><button class="secondary" onclick="saveBTWControl()">Save filing status</button><button class="${closed?'secondary':'danger'}" onclick="togglePeriodClosed()">${closed?'Reopen period':'Close period'}</button></div></div>`;
+}
+function saveBTWControl(){data.control.BTWStatus=$("btwFilingStatus")?.value||"Draft";data.control.BTWFiledDate=$("btwFiledDate")?.value||"";data.control.BTWActualAmount=$("btwActualAmount")?.value||"";data.control.BTWNote=$("btwFilingNote")?.value||"";persist();alert("BTW filing status saved in this quarterly workbook.")}
+function togglePeriodClosed(){
+  if(periodIsClosed()){if(!confirm("Reopen this bookkeeping period?\n\nEditing, deletion and Renoweet OS sync will be enabled again."))return;data.control.PeriodClosed="No";data.control.PeriodReopenedAt=new Date().toISOString()}
+  else{if(!confirm("Close this bookkeeping quarter?\n\nAfter closing, invoices, expenses, deletions and Renoweet OS sync will be blocked until you deliberately reopen it."))return;data.control.PeriodClosed="Yes";data.control.PeriodClosedAt=new Date().toISOString()}
+  persist();render();
+}
+function renderBTWReport(){
+  const host=$("btwReport");if(!host)return;
+  const periodInvoices=rowsForConnectedPeriod(data.invoices);
+  const issued=periodInvoices.filter(r=>["paid","open"].includes(String(r.Status||"").toLowerCase()));
+  const exp=[...rowsForConnectedPeriod(data.expenses).map(r=>({...r,_source:"General"})),...rowsForConnectedPeriod(data.fuel).map(r=>({...r,_source:"Fuel"})),...rowsForConnectedPeriod(data.auto).map(r=>({...r,_source:"Automobile"}))];
+  const outVat=sum(issued,"VAT"),inVat=sum(exp,"VAT"),outNet=issued.reduce((a,r)=>a+n(r["Gross incl. VAT"])-n(r.VAT),0),payable=outVat-inVat;
+  const salesRates=vatRateBreakdown(issued,true),expenseRates=vatRateBreakdown(exp,false);
+  const incomeRows=issued.map(r=>({"Invoice #":r["Invoice #"],Date:r.Date,Customer:r.Customer,"VAT rate":rateLabel(inferVatRate(r,true)),"Gross incl. VAT":r["Gross incl. VAT"],VAT:r.VAT,"Ex VAT":n(r["Gross incl. VAT"])-n(r.VAT),Status:r.Status}));
+  const expenseRows=exp.map(r=>({Type:r._source,Date:r.Date,Supplier:r.Supplier,Description:r.Description,"VAT rate":rateLabel(inferVatRate(r,false)),Gross:r.Gross,VAT:r.VAT,"Ex VAT":n(r.Gross)-n(r.VAT),Proof:r["Receipt/File"]||"","Proof check":r["Proof Check"]||""}));
+  host.innerHTML=`${btwControlHtml()}<div class="card panel"><div class="panel-head"><div><h2>BTW Report</h2><div class="chart-sub">${esc(quarterLabelFromName(currentBookkeepingFileName))} • only transactions inside the connected quarterly period are calculated</div></div><div class="report-actions"><button class="secondary" onclick="printBTWReport()">Print BTW report</button></div></div>
+  <div class="report-summary"><div class="mini"><span>Sales ex VAT</span><strong>${euro.format(outNet)}</strong></div><div class="mini"><span>Output VAT</span><strong>${euro.format(outVat)}</strong></div><div class="mini"><span>Input VAT</span><strong>${euro.format(inVat)}</strong></div><div class="mini"><span>${payable>=0?"BTW payable":"BTW receivable"}</span><strong>${euro.format(Math.abs(payable))}</strong></div></div>
+  <h2>VAT rate breakdown — sales</h2><div class="btw-breakdown">${Object.entries(salesRates).map(([k,v])=>`<div class="mini"><span>${rateLabel(k)} sales • ${v.count} row(s)</span><strong>${euro.format(v.vat)} VAT</strong><div class="inline-note">Ex VAT ${euro.format(v.net)}</div></div>`).join("")}</div>
+  <h2>VAT rate breakdown — expenses</h2><div class="btw-breakdown">${Object.entries(expenseRates).map(([k,v])=>`<div class="mini"><span>${rateLabel(k)} expenses • ${v.count} row(s)</span><strong>${euro.format(v.vat)} VAT</strong><div class="inline-note">Ex VAT ${euro.format(v.net)}</div></div>`).join("")}</div>
+  <p class="report-note">Invoices marked Open or Paid are treated as issued invoices. Unknown invoices are excluded. “Other” flags custom or non-standard VAT amounts for review rather than guessing a tax treatment.</p>
+  <h2>Income / sales details</h2>${makeTable(incomeRows,["Invoice #","Date","Customer","VAT rate","Gross incl. VAT","VAT","Ex VAT","Status"],"readonly")}
+  <h2>Expense / input VAT details</h2>${makeTable(expenseRows,["Type","Date","Supplier","Description","VAT rate","Gross","VAT","Ex VAT","Proof","Proof check"],"readonly")}</div>`;
+}
+function printBTWReport(){
+  const host=$("btwReport");if(!host)return;const clone=host.cloneNode(true);clone.querySelectorAll("button,input,select").forEach(el=>{if(el.tagName==="INPUT"||el.tagName==="SELECT"){const sp=document.createElement("span");sp.textContent=el.value||"";el.replaceWith(sp)}else el.remove()});printHtmlReport("BTW quarterly report",quarterLabelFromName(currentBookkeepingFileName),clone.innerHTML);
 }
 
 function render(){
   dashboard();
-  $("invoices").innerHTML=`<div class="card panel"><div class="panel-head"><h2>Invoices</h2><button class="green" onclick="openInvoice()">+ New invoice</button></div>${makeTable(data.invoices,["Invoice #","Date","Customer","Address","Work description","Gross incl. VAT","Parking","VAT","Net revenue","Status","Due date","Paid date"],"invoice")}</div>`;
-  $("expenses").innerHTML=`<div class="card panel"><div class="panel-head"><h2>General expenses</h2><button class="green" onclick="openExpense('General')">+ Add expense</button></div>${makeTable(data.expenses,["Date","Supplier","Category","Description","Gross","VAT","Net","Review","Notes"],"general")}</div>`;
+  $("invoices").innerHTML=`<div class="card panel"><div class="panel-head"><h2>Invoices</h2><div class="report-actions"><button class="secondary" onclick="printInvoices()">Print</button><button class="green" onclick="openInvoice()">+ New invoice</button></div></div>${makeTable(data.invoices.map(r=>({...r,"VAT rate":rateLabel(inferVatRate(r,true))})),["Invoice #","Date","Customer","Work description","Gross incl. VAT","Parking","VAT rate","VAT","Net revenue","Status","Due date","Paid date"],"invoice")}</div>`;
+  const customers=getCustomers();
+  $("customers").innerHTML=`<div class="card panel"><div class="panel-head"><div><h2>Customers</h2><div class="chart-sub">Contact details are kept here instead of widening the invoice register.</div></div><div class="report-actions"><button class="secondary" onclick="printCustomers()">Print</button></div></div>${makeTable(customers,["Customer","Phone","Email","Address","Invoices","Gross","Outstanding"],"readonly")}</div>`;
+  $("expenses").innerHTML=`<div class="card panel"><div class="panel-head"><div><h2>General expenses</h2><div class="chart-sub">Every new expense requires a PDF/image proof.</div></div><div class="report-actions"><button class="secondary" onclick="connectProofFolder()">Connect proof folder</button><button class="secondary" onclick="printExpenses()">Print</button><button class="green" onclick="openExpense('General')">+ Add expense</button></div></div>${makeTable(data.expenses.map(r=>({...r,"VAT rate":rateLabel(inferVatRate(r,false))})),["Date","Supplier","Category","Description","Gross","VAT rate","VAT","Net","Receipt/File","Proof Check","Review","Notes"],"general")}</div>`;
   $("autoFuel").innerHTML=`<div class="split">
-    <div class="card panel"><div class="panel-head"><h2>Fuel expenses</h2><button class="green" onclick="openExpense('Fuel')">+ Add fuel</button></div>${makeTable(data.fuel,["Date","Supplier","Description","Gross","VAT","Net","Receipt/File"],"fuel")}</div>
-    <div class="card panel"><div class="panel-head"><h2>Automobile expenses</h2><button class="green" onclick="openExpense('Automobile')">+ Add automobile</button></div>${makeTable(data.auto,["Date","Supplier","Description","Gross","VAT","Net","Receipt/File"],"auto")}</div>
-  </div>`;  renderIncomeTax();
+    <div class="card panel"><div class="panel-head"><h2>Fuel expenses</h2><button class="green" onclick="openExpense('Fuel')">+ Add fuel</button></div>${makeTable(data.fuel.map(r=>({...r,"VAT rate":rateLabel(inferVatRate(r,false))})),["Date","Supplier","Description","Gross","VAT rate","VAT","Net","Receipt/File","Proof Check"],"fuel")}</div>
+    <div class="card panel"><div class="panel-head"><h2>Automobile expenses</h2><button class="green" onclick="openExpense('Automobile')">+ Add automobile</button></div>${makeTable(data.auto.map(r=>({...r,"VAT rate":rateLabel(inferVatRate(r,false))})),["Date","Supplier","Description","Gross","VAT rate","VAT","Net","Receipt/File","Proof Check"],"auto")}</div>
+  </div>`;
+  renderBTWReport();
+  renderIncomeTax();
 }
 function nextInvoiceNo(){
   const d=new Date(), y=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0");
@@ -670,10 +1033,12 @@ function nextInvoiceNo(){
 }
 function openModal(id){$(id).classList.add("open")} function closeModal(id){$(id).classList.remove("open")}
 function openInvoice(index=null){
+  if(!ensurePeriodEditable(index===null?"create a new invoice":"edit an invoice"))return;
   editingInvoiceIndex=index; const r=index===null?{}:data.invoices[index];
   $("invoiceModalTitle").textContent=index===null?"New invoice":"Edit invoice";
   $("deleteInvoiceBtn").hidden=index===null;
   $("invNo").value=r["Invoice #"]||nextInvoiceNo(); $("invDate").value=isoDate(r.Date)||new Date().toISOString().slice(0,10);
+  const ir=inferVatRate(r,true); $("invVatRate").value=["21","9","0"].includes(ir)?ir:"custom"; $("invCustomVat").value=$("invVatRate").value==="custom"?n(r.VAT):""; toggleInvoiceCustomVat();
   $("invCustomer").value=r.Customer||"";$("invContact").value=r.Contact||"";$("invAddress").value=r.Address||"";$("invDescription").value=r["Work description"]||"";
   $("invGross").value=r["Gross incl. VAT"]||"";$("invParking").value=r.Parking||0;$("invOther").value=r["Other costs"]||0;$("invStatus").value=r.Status||"Unknown";
   $("invDue").value=isoDate(r["Due date"]);$("invPaid").value=isoDate(r["Paid date"]);$("invNotes").value=r.Notes||""; openModal("invoiceModal");
@@ -694,17 +1059,24 @@ function requireFields(fields, message){
   return true;
 }
 
+function toggleInvoiceCustomVat(){$("invCustomVatField").style.display=$("invVatRate").value==="custom"?"flex":"none"}
+$("invVatRate").addEventListener("change",toggleInvoiceCustomVat);
 function invoiceFromForm(){
-  const gross=n($("invGross").value),rate=n($("invVatRate").value),vat=calcVat(gross,rate);
+  const gross=n($("invGross").value),rate=$("invVatRate").value,vat=rate==="custom"?Math.max(0,n($("invCustomVat").value)):calcVat(gross,rate);
   return {"Invoice #":$("invNo").value.trim(),"Date":excelSerial($("invDate").value),"Customer":$("invCustomer").value.trim(),"Address":$("invAddress").value.trim(),
     "Work description":$("invDescription").value.trim(),"Contact":$("invContact").value.trim(),"Gross incl. VAT":gross,"Parking":n($("invParking").value),
-    "Other costs":n($("invOther").value),"VAT":vat,"Net revenue":Math.max(0,gross-vat),"Status":$("invStatus").value,
+    "Other costs":n($("invOther").value),"VAT":vat,"VAT rate":rate==="custom"?"Other":rate,"Net revenue":Math.max(0,gross-vat),"Status":$("invStatus").value,
     "Due date":excelSerial($("invDue").value),"Paid date":excelSerial($("invPaid").value),"Days overdue":"","Notes":$("invNotes").value.trim()};
 }
 $("saveInvoiceBtn").onclick=()=>{
+  if(!ensurePeriodEditable("save an invoice"))return;
   if(!requireFields([["invNo","Invoice number"],["invDate","Date"],["invCustomer","Customer"],["invDescription","Work description"],["invGross","Gross incl. VAT"]],"Please complete the required invoice fields."))return;
   const r=invoiceFromForm();
   if(n(r["Gross incl. VAT"])<=0){alert("Gross incl. VAT must be greater than €0.");$("invGross").focus();return}
+  if(n(r.VAT)<0||n(r.VAT)>n(r["Gross incl. VAT"])){alert("VAT must be between €0 and the gross invoice amount.");return}
+  if(!confirmPeriodDate(r.Date,"invoice"))return;
+  const dup=data.invoices.findIndex((x,i)=>i!==editingInvoiceIndex&&String(x["Invoice #"]||"").trim()===r["Invoice #"]);
+  if(dup>=0){alert(`Invoice number ${r["Invoice #"]} already exists. Use a unique invoice number.`);$("invNo").focus();return}
   if(editingInvoiceIndex===null)data.invoices.push(r);else data.invoices[editingInvoiceIndex]=r;persist();render();closeModal("invoiceModal")};
 $("previewInvoiceBtn").onclick=()=>showInvoicePreview(invoiceFromForm());
 function showInvoicePreview(r){
@@ -779,7 +1151,7 @@ function showInvoicePreview(r){
 
   <div class="inv-summary">
     <div class="inv-sumrow"><b>Subtotaal</b><span class="mid">€</span><span></span><span class="val">${netBeforeVat.toFixed(2)}</span></div>
-    <div class="inv-sumrow"><b>BTW</b><span class="mid">21%</span><span class="mid">€</span><span class="val">${vat.toFixed(2)}</span></div>
+    <div class="inv-sumrow"><b>BTW</b><span class="mid">${rateLabel(r["VAT rate"]||inferVatRate(r,true))}</span><span class="mid">€</span><span class="val">${vat.toFixed(2)}</span></div>
   </div>
   <div class="inv-grand"><span class="label">Totaal</span><span class="currency">€</span><span></span><span class="value">${grand.toFixed(2)}</span></div>
 
@@ -962,6 +1334,8 @@ async function sendBookkeepingInvoiceWhatsApp(){
 }
 
 function openExpense(type="General",index=null){
+  if(!ensurePeriodEditable(index===null?"create a new expense":"edit an expense"))return;
+  pendingProofFile=null; proofExtracted=null;
   editingExpense={type,index}; const arr=type==="Fuel"?data.fuel:type==="Automobile"?data.auto:data.expenses; const r=index===null?{}:arr[index];
   $("expenseModalTitle").textContent=(index===null?"Add ":"Edit ")+type.toLowerCase()+" expense";
   $("deleteExpenseBtn").hidden=index===null;
@@ -977,20 +1351,34 @@ function openExpense(type="General",index=null){
   else if(matches9){$("expVatRate").value="9";$("expCustomVat").value="";}
   else if(matches0){$("expVatRate").value="0";$("expCustomVat").value="";}
   else {$("expVatRate").value="custom";$("expCustomVat").value=storedVat;}
-  toggleCategory();toggleCustomVat();openModal("expenseModal");
+  toggleCategory();toggleCustomVat();updateProofStatus();openModal("expenseModal");
 }
 function toggleCategory(){$("categoryField").style.display=$("expType").value==="General"?"flex":"none"} $("expType").onchange=toggleCategory;
 function toggleCustomVat(){$("customVatField").style.display=$("expVatRate").value==="custom"?"flex":"none"} $("expVatRate").onchange=toggleCustomVat;
-$("saveExpenseBtn").onclick=()=>{
+$("saveExpenseBtn").onclick=async()=>{
   const type=$("expType").value,gross=n($("expGross").value);
   const vat=$("expVatRate").value==="custom"?Math.max(0,n($("expCustomVat").value)):calcVat(gross,$("expVatRate").value);
-  let r={Date:excelSerial($("expDate").value),Supplier:$("expSupplier").value.trim(),Description:$("expDescription").value.trim(),Gross:gross,VAT:vat,Net:gross-vat,"Receipt/File":$("expReceipt").value.trim()};
+  const existingProof=$("expReceipt").value.trim();
+  if(!existingProof && !pendingProofFile){alert("Attach a PDF or image proof before saving this expense.");$("attachProofBtn").focus();return}
+  let proofName=existingProof;
+  if(pendingProofFile){
+    try{proofName=await storeProofFile(pendingProofFile,type)}catch(e){alert("Could not store proof: "+e.message);return}
+    if(!proofName)return;
+  }
+  if(!ensurePeriodEditable("save an expense"))return;
+  const previousProofCheck=(editingExpense.index!==null?(editingExpense.type==="Fuel"?data.fuel:editingExpense.type==="Automobile"?data.auto:data.expenses)[editingExpense.index]?.["Proof Check"]:"")||"";
+  const proofCheck=proofExtracted?((!proofExtracted.gross||Math.abs(n(proofExtracted.gross)-gross)<=0.03)&&(!proofExtracted.vat||Math.abs(n(proofExtracted.vat)-vat)<=0.03)?"Match":"Mismatch"):(previousProofCheck|| (existingProof?"Not checked":"Missing"));
+  let r={Date:excelSerial($("expDate").value),Supplier:$("expSupplier").value.trim(),Description:$("expDescription").value.trim(),Gross:gross,VAT:vat,"VAT rate":$("expVatRate").value==="custom"?"Other":$("expVatRate").value,Net:gross-vat,"Receipt/File":proofName,"Proof Check":proofCheck};
   let arr;
   if(gross<=0){alert("Gross amount must be greater than €0.");$("expGross").focus();return}
   if(n(r.VAT)<0 || n(r.VAT)>gross){alert("VAT amount must be between €0 and the gross amount.");return}
+  if(!confirmPeriodDate(r.Date,"expense"))return;
   if(type==="General"){r.Category=$("expCategory").value.trim();r.Review=$("expReview").value;r.Notes=$("expNotes").value.trim();arr=data.expenses}
   else arr=type==="Fuel"?data.fuel:data.auto;
+  const duplicate=expenseDuplicate(r,type,editingExpense.type===type?editingExpense.index:null);
+  if(duplicate&&!confirm(`Possible duplicate expense detected.\n\n${r.Supplier} • ${fmtDate(r.Date)} • ${euro.format(r.Gross)}\n\nA similar ${duplicate._type.toLowerCase()} expense already exists. Save anyway?`))return;
   if(editingExpense.index===null||editingExpense.type!==type) arr.push(r); else arr[editingExpense.index]=r;
+  pendingProofFile=null;proofExtracted=null;
   persist();render();closeModal("expenseModal");
 };
 window.editRow=(type,index)=>{if(type==="invoice")openInvoice(index);else if(type==="fuel")openExpense("Fuel",index);else if(type==="auto")openExpense("Automobile",index);else openExpense("General",index)};
@@ -1019,6 +1407,7 @@ function deletedRow(type,r){
 }
 
 $("deleteInvoiceBtn").onclick=()=>{
+  if(!ensurePeriodEditable("delete an invoice"))return;
   if(editingInvoiceIndex===null)return;
   const r=data.invoices[editingInvoiceIndex];
   if(!r)return;
@@ -1034,6 +1423,7 @@ $("deleteInvoiceBtn").onclick=()=>{
 };
 
 $("deleteExpenseBtn").onclick=()=>{
+  if(!ensurePeriodEditable("delete an expense"))return;
   const {type,index}=editingExpense;
   if(index===null)return;
   const arr=type==="Fuel"?data.fuel:type==="Automobile"?data.auto:data.expenses;
@@ -1051,8 +1441,8 @@ $("deleteExpenseBtn").onclick=()=>{
 };
 
 function aoaFromData(){
-  const invHeaders=["Invoice #","Date","Customer","Address","Work description","Contact","Gross incl. VAT","Parking","Other costs","VAT","Net revenue","Status","Due date","Paid date","Days overdue","Notes"];
-  const expHeaders=["Date","Supplier","Category","Description","Gross","VAT","Net","Receipt/File","Review","Notes"];
+  const invHeaders=["Invoice #","Date","Customer","Address","Work description","Contact","Phone","Email","Gross incl. VAT","Parking","Other costs","VAT","VAT rate","Net revenue","Status","Due date","Paid date","Days overdue","Notes","Source database"];
+  const expHeaders=["Date","Supplier","Category","Description","Gross","VAT","VAT rate","Net","Receipt/File","Proof Check","Review","Notes"];
   return {invHeaders,expHeaders};
 }
 function replaceDataSheets(){
@@ -1072,11 +1462,13 @@ function replaceDataSheets(){
     ["Fuel totals","Gross","VAT","Net","","","","","Automobile totals","Gross","VAT","Net"],
     ["Fuel",sum(data.fuel,"Gross"),sum(data.fuel,"VAT"),sum(data.fuel,"Net"),"","","","","Automobile",sum(data.auto,"Gross"),sum(data.auto,"VAT"),sum(data.auto,"Net")],
     ["Combined total",sum(data.fuel,"Gross")+sum(data.auto,"Gross"),sum(data.fuel,"VAT")+sum(data.auto,"VAT"),sum(data.fuel,"Net")+sum(data.auto,"Net")],
-    ["Date","Supplier","Description","Gross","VAT","Net","Receipt/File","","Date","Supplier","Description","Gross","VAT","Net","Receipt/File"]
+    ["Date","Supplier","Description","Gross","VAT","VAT rate","Net","Receipt/File","Proof Check","","Date","Supplier","Description","Gross","VAT","VAT rate","Net","Receipt/File","Proof Check"]
   ]);
-  data.fuel.forEach((r,i)=>XLSX.utils.sheet_add_aoa(af,[[r.Date,r.Supplier,r.Description,r.Gross,r.VAT,r.Net,r["Receipt/File"]]],{origin:{r:i+7,c:0}}));
-  data.auto.forEach((r,i)=>XLSX.utils.sheet_add_aoa(af,[[r.Date,r.Supplier,r.Description,r.Gross,r.VAT,r.Net,r["Receipt/File"]]],{origin:{r:i+7,c:8}}));
+  data.fuel.forEach((r,i)=>XLSX.utils.sheet_add_aoa(af,[[r.Date,r.Supplier,r.Description,r.Gross,r.VAT,r["VAT rate"]||inferVatRate(r),r.Net,r["Receipt/File"],r["Proof Check"]||""]],{origin:{r:i+7,c:0}}));
+  data.auto.forEach((r,i)=>XLSX.utils.sheet_add_aoa(af,[[r.Date,r.Supplier,r.Description,r.Gross,r.VAT,r["VAT rate"]||inferVatRate(r),r.Net,r["Receipt/File"],r["Proof Check"]||""]],{origin:{r:i+7,c:10}}));
   workbook.Sheets["Auto & Fuel"]=af;
+
+  workbook.Sheets["Bookkeeping Control"]=XLSX.utils.json_to_sheet(Object.entries(data.control||{}).map(([Key,Value])=>({Key,Value})),{header:["Key","Value"]});
 
   // Keep a simple live Dashboard sheet in the workbook.
   const grossRev=sum(data.invoices,"Gross incl. VAT"),netRev=sum(data.invoices,"Net revenue");
@@ -1090,7 +1482,7 @@ function replaceDataSheets(){
   ]);
 
   // Ensure sheet order includes expected sheets.
-  const wanted=["Settings","Invoices","Expenses","Deleted","Dashboard","Invoice Template","Offer Template","Auto & Fuel"];
+  const wanted=["Settings","Bookkeeping Control","Invoices","Expenses","Deleted","Dashboard","Invoice Template","Offer Template","Auto & Fuel"];
   workbook.SheetNames=[...wanted.filter(n=>workbook.Sheets[n]),...workbook.SheetNames.filter(n=>!wanted.includes(n) && workbook.Sheets[n])];
 }
 async function saveWorkbook(manual=true){
@@ -1119,6 +1511,7 @@ async function loadFromHandle(handle,askPermission=true){
   if(!(await verifyPermission(handle,askPermission))) return false;
   const file=await handle.getFile();
   workbook=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
+  currentBookkeepingFileName=file.name||handle.name||"";
   fileHandle=handle; normalize(); render();
   $("saveNowBtn").disabled=false;
   $("status").textContent="Connected: "+file.name+" • autosave on";
@@ -1159,17 +1552,21 @@ function osInvoiceToBookkeeping(r){
     "Customer":r["Customer"]||"",
     "Address":r["Address"]||"",
     "Work description":r["Description"]||r["Project"]||"",
-    "Contact":"",
+    "Contact":[r["Email"]||"",r["Phone"]||""].filter(Boolean).join(" • "),
+    "Phone":r["Phone"]||"",
+    "Email":r["Email"]||"",
     "Gross incl. VAT":total,
     "Parking":parking,
     "Other costs":other,
     "VAT":vat,
+    "VAT rate":inferVatRate({"Gross incl. VAT":total,"VAT":vat},true),
     "Net revenue":netBeforeVat,
     "Status":r["Status"]==="Paid"?"Paid":"Open",
     "Due date":osDateToSerial(r["Due date"]),
     "Paid date":"",
     "Days overdue":"",
-    "Notes":r["Project"]?("Renoweet OS project: "+r["Project"]):"Imported from Renoweet OS"
+    "Notes":r["Project"]?("Renoweet OS project: "+r["Project"]):"Imported from Renoweet OS",
+    "Source database":r["Source database"]||""
   };
 }
 async function chooseOSWorkbook(){
@@ -1191,12 +1588,14 @@ async function chooseOSWorkbook(){
     return null;
   }
 }
-async function syncRenoweetOS(){
+async function syncRenoweetOS(forceChoose=false){
+  if(!ensurePeriodEditable("sync Renoweet OS into it"))return;
   if(!workbook||!fileHandle){
     alert("Connect your bookkeeping OneDrive workbook first.");
     return;
   }
-  let handle=osFileHandle;
+  let handle=forceChoose?null:osFileHandle;
+  if(forceChoose){handle=await chooseOSWorkbook();if(!handle)return}
   if(!handle){
     const remembered=await getRememberedHandle(OS_HANDLE_KEY);
     if(remembered && await verifyPermission(remembered,false)){
@@ -1212,6 +1611,14 @@ async function syncRenoweetOS(){
   try{
     $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> reading database…";
     const file=await handle.getFile();
+    const bkQ=quarterKeyFromName(currentBookkeepingFileName), osQ=quarterKeyFromName(file.name);
+    if(bkQ && osQ && bkQ!==osQ){
+      $("osSyncStatus").innerHTML=`<b>Renoweet OS sync:</b> wrong period selected (${esc(file.name)}).`;
+      alert(`This bookkeeping file appears to be ${bkQ}, but the selected Renoweet OS database appears to be ${osQ}.\n\nChoose the matching Renoweet OS quarterly file.`);
+      const replacement=await chooseOSWorkbook();
+      if(replacement)return syncRenoweetOS(false);
+      return;
+    }
     const osBook=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
     const ws=osBook.Sheets["Bookkeeping"];
     if(!ws){
@@ -1225,6 +1632,14 @@ async function syncRenoweetOS(){
       const sentAt=String(r["Sent at"]||'').trim();
       return !!sentAt || ['sent','open','paid'].includes(status);
     });
+    const sourceNames=[...new Set(incoming.map(r=>String(r["Source database"]||"").trim()).filter(Boolean))];
+    const sourceQs=[...new Set(sourceNames.map(quarterKeyFromName).filter(Boolean))];
+    const bkQ2=quarterKeyFromName(currentBookkeepingFileName);
+    if(bkQ2 && sourceQs.length && sourceQs.some(q=>q!==bkQ2)){
+      alert(`The Renoweet OS Bookkeeping sheet contains invoices from a different quarter (${sourceQs.join(", ")}). Nothing was imported.\n\nUse Change OS file and select the matching ${bkQ2} database.`);
+      $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> quarter mismatch • choose correct OS file.";
+      return;
+    }
     if(!incoming.length){
       $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> no sent invoices found.";
       alert("No sent invoices were found in Renoweet OS. Only invoices sent from the OS invoice form are imported into bookkeeping.");
@@ -1249,8 +1664,16 @@ async function syncRenoweetOS(){
   }
 }
 
+
+$("attachProofBtn").onclick=()=>$("expProofFile").click();
+$("connectProofFolderBtn").onclick=connectProofFolder;
+$("expProofFile").onchange=async e=>{pendingProofFile=e.target.files?.[0]||null;if(pendingProofFile)await analyzeProofFile(pendingProofFile,true);e.target.value=""};
+["expGross","expCustomVat"].forEach(id=>$(id).addEventListener("input",updateProofStatus));
+$("expVatRate").addEventListener("change",()=>{toggleCustomVat();updateProofStatus()});
+
 $("connectBtn").onclick=connectWorkbook;
-$("syncOSBtn").onclick=syncRenoweetOS;
+$("syncOSBtn").onclick=()=>syncRenoweetOS(false);
+$("changeOSBtn").onclick=()=>syncRenoweetOS(true);
 $("saveNowBtn").onclick=()=>saveWorkbook(true);
 
 async function startup(){
@@ -1261,6 +1684,8 @@ async function startup(){
   try{
     const remembered=await getRememberedHandle();
     const rememberedOS=await getRememberedHandle(OS_HANDLE_KEY);
+    const rememberedProof=await getRememberedHandle(PROOF_FOLDER_KEY);
+    if(rememberedProof && await verifyPermission(rememberedProof,false))proofFolderHandle=rememberedProof;
     if(rememberedOS && await verifyPermission(rememberedOS,false)){
       osFileHandle=rememberedOS;
       $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> database remembered • click Sync Renoweet OS.";
