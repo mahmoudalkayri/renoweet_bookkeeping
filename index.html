@@ -420,7 +420,11 @@ const HANDLE_STORE="handles";
 const HANDLE_KEY="bookkeepingWorkbook";
 const OS_HANDLE_KEY="renoweetOSWorkbook";
 const PROOF_FOLDER_KEY="renoweetProofFolder";
-let workbook=null, fileHandle=null, osFileHandle=null, proofFolderHandle=null, saveTimer=null, isSaving=false, currentBookkeepingFileName="";
+const CACHE_DB="RenoweetBookkeepingCache";
+const CACHE_STORE="quarterlyWorkbooks";
+const LAST_CACHE_KEY="renoweet_bookkeeping_last_cache_key_v1";
+let workbook=null, fileHandle=null, osFileHandle=null, proofFolderHandle=null, saveTimer=null, cacheTimer=null, isSaving=false, currentBookkeepingFileName="";
+let localCacheDirty=false, restoredLocalCache=false, lastRemoteSignature="";
 let data={invoices:[],expenses:[],fuel:[],auto:[],deleted:[],control:{}}, editingInvoiceIndex=null, editingExpense={type:null,index:null};
 let pendingProofFile=null, proofExtracted=null;
 let annualTaxData=null;
@@ -586,12 +590,56 @@ async function verifyPermission(handle,ask=false){
   if(ask && (await handle.requestPermission(opts))==="granted") return true;
   return false;
 }
+function openCacheDb(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(CACHE_DB,1);
+    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(CACHE_STORE))req.result.createObjectStore(CACHE_STORE)};
+    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+  });
+}
+function cacheKey(name=currentBookkeepingFileName){return String(name||localStorage.getItem(LAST_CACHE_KEY)||"unspecified").toLowerCase()}
+async function writeBrowserCache(dirty=localCacheDirty){
+  try{
+    if(!workbook)return false;
+    replaceDataSheets();
+    const bytes=XLSX.write(workbook,{bookType:"xlsx",type:"array"});
+    if(!looksLikeXlsxZip(bytes))return false;
+    const name=currentBookkeepingFileName||"Renoweet_Bookkeeping_local.xlsx";
+    const rec={name,dirty:!!dirty,baseSignature:lastRemoteSignature||"",updatedAt:new Date().toISOString(),bytes};
+    const dbx=await openCacheDb(),tx=dbx.transaction(CACHE_STORE,"readwrite");
+    tx.objectStore(CACHE_STORE).put(rec,cacheKey(name));
+    await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});
+    localStorage.setItem(LAST_CACHE_KEY,name);
+    return true;
+  }catch(e){console.warn("Could not cache bookkeeping locally",e);return false}
+}
+function scheduleBrowserCache(dirty=true){
+  localCacheDirty=!!dirty; clearTimeout(cacheTimer);
+  cacheTimer=setTimeout(()=>writeBrowserCache(localCacheDirty),180);
+}
+async function restoreBrowserCache(){
+  try{
+    const name=localStorage.getItem(LAST_CACHE_KEY); if(!name)return false;
+    const dbx=await openCacheDb(),tx=dbx.transaction(CACHE_STORE,"readonly"),req=tx.objectStore(CACHE_STORE).get(cacheKey(name));
+    const rec=await new Promise((res,rej)=>{req.onsuccess=()=>res(req.result||null);req.onerror=()=>rej(req.error)});
+    if(!rec?.bytes)return false;
+    const bytes=rec.bytes instanceof ArrayBuffer?rec.bytes:rec.bytes.buffer;
+    if(!looksLikeXlsxZip(bytes))return false;
+    const wb=XLSX.read(bytes,{type:"array",cellDates:false}); assertBookkeepingWorkbook(wb,rec.name||name);
+    workbook=wb; currentBookkeepingFileName=rec.name||name; localCacheDirty=!!rec.dirty; restoredLocalCache=true; lastRemoteSignature=rec.baseSignature||"";
+    normalize(); render();
+    $("saveNowBtn").disabled=true;
+    $("status").textContent=localCacheDirty?"Offline changes restored ✓ • reconnect XLSX to sync":"Local bookkeeping restored ✓ • reconnect XLSX when needed";
+    return true;
+  }catch(e){console.warn("Could not restore bookkeeping cache",e);return false}
+}
 function persist(){
   render();
+  scheduleBrowserCache(true);
   scheduleAutoSave();
 }
 function scheduleAutoSave(){
-  if(!fileHandle){$("status").textContent="Not connected • changes are not saved";return}
+  if(!fileHandle){$("status").textContent="Saved locally ✓ • offline changes will survive refresh • reconnect XLSX to sync";return}
   $("status").textContent="Unsaved changes…";
   clearTimeout(saveTimer);
   saveTimer=setTimeout(()=>saveWorkbook(false),RENOWEET_ANDROID?2200:900);
@@ -1592,11 +1640,14 @@ async function saveWorkbook(manual=true){
       e.name="SaveVerificationError"; throw e;
     }
     workbook=check.workbook;
+    lastRemoteSignature=actualSignature; localCacheDirty=false;
+    await writeBrowserCache(false);
     $("status").textContent="Saved & verified ✓ • OneDrive sync active";
     return true;
   }catch(e){
     console.error(e);
-    $("status").textContent=e?.name==="XlsxNotReadyError"?"OneDrive XLSX not ready • local page changes kept":"Save not verified • try again";
+    localCacheDirty=true; await writeBrowserCache(true);
+    $("status").textContent=e?.name==="XlsxNotReadyError"?"OneDrive XLSX not ready • changes saved locally":"Save not verified • changes saved locally";
     if(manual||e?.name==="SaveVerificationError") alert("Could not safely confirm the workbook save.\n\n"+(e?.message||e)+"\n\n"+oneDriveHelpText());
     return false;
   }finally{
@@ -1634,22 +1685,40 @@ async function loadFromHandle(handle,askPermission=true){
     if(!snap)return false;
     const file=snap.file,candidate=snap.workbook;
     const nextName=file.name||handle.name||"";
+    const remoteSignature=await bookkeepingLogicalSignature(candidate);
+
+    if(restoredLocalCache&&localCacheDirty){
+      if(currentBookkeepingFileName&&nextName&&currentBookkeepingFileName.toLowerCase()!==nextName.toLowerCase()){
+        alert(`Offline bookkeeping changes belong to ${currentBookkeepingFileName}.\n\nPlease reconnect that exact workbook first. Renoweet will not mix quarterly files.`);
+        return false;
+      }
+      fileHandle=handle; await rememberHandle(handle);
+      if(!lastRemoteSignature || remoteSignature===lastRemoteSignature){
+        $("saveNowBtn").disabled=false;
+        $("status").textContent="Offline changes restored • syncing safely to OneDrive…";
+        return await saveWorkbook(true);
+      }
+      const overwrite=confirm("This bookkeeping XLSX changed on another device after this tablet went offline.\n\nOK = keep this tablet's offline changes and overwrite the current OneDrive bookkeeping data.\n\nCancel = keep the tablet's offline changes locally and stop here so nothing is overwritten.");
+      if(!overwrite){fileHandle=null;$("saveNowBtn").disabled=true;$("status").textContent="Offline changes kept locally • OneDrive version also changed";return false}
+      $("saveNowBtn").disabled=false; return await saveWorkbook(true);
+    }
+
     if(currentBookkeepingFileName && nextName && currentBookkeepingFileName!==nextName){
       const ok=confirm(`Switch Bookkeeping workbook?\n\nCurrent: ${currentBookkeepingFileName}\nSelected: ${nextName}\n\nThese files stay separate. No data will be merged between quarterly bookkeeping files. Continue?`);
       if(!ok)return false;
     }
-    workbook=candidate;
-    currentBookkeepingFileName=nextName;
-    fileHandle=handle; normalize(); render();
+    workbook=candidate; currentBookkeepingFileName=nextName; fileHandle=handle;
+    lastRemoteSignature=remoteSignature; localCacheDirty=false; restoredLocalCache=false;
+    normalize(); render();
     $("saveNowBtn").disabled=false;
     $("status").textContent="Connected BOOKKEEPING: "+nextName+" • autosave on"+(RENOWEET_ANDROID?" • Android-safe mode":"");
-    await rememberHandle(handle);
+    await rememberHandle(handle); await writeBrowserCache(false);
     return true;
   }catch(e){
     console.error(e);
     if(e?.name==="XlsxNotReadyError"){
-      $("status").textContent="OneDrive XLSX is not fully available on this device";
-      alert("The bookkeeping XLSX is not fully available yet.\n\n"+oneDriveHelpText()+"\n\nNothing was loaded or overwritten.");
+      $("status").textContent=restoredLocalCache?"OneDrive XLSX unavailable • local bookkeeping remains available":"OneDrive XLSX is not fully available on this device";
+      alert("The bookkeeping XLSX is not fully available yet.\n\n"+oneDriveHelpText()+"\n\nYour locally cached bookkeeping has not been overwritten.");
       return false;
     }
     throw e;
@@ -1820,8 +1889,9 @@ $("changeOSBtn").onclick=()=>syncRenoweetOS(true);
 $("saveNowBtn").onclick=()=>saveWorkbook(true);
 
 async function startup(){
+  await restoreBrowserCache();
   if(!("showOpenFilePicker" in window)){
-    $("status").textContent="Use Edge/Chrome to enable direct autosave";
+    if(!restoredLocalCache)$("status").textContent="Use Edge/Chrome to enable direct autosave";
     return;
   }
   try{
@@ -1834,15 +1904,20 @@ async function startup(){
       $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> database remembered • click Sync Renoweet OS.";
     }
     if(remembered && await verifyPermission(remembered,false)){
+      // When offline edits survived a refresh, reuse the remembered handle automatically when Android kept permission.
       await loadFromHandle(remembered,false);
+    } else if(restoredLocalCache){
+      $("status").textContent=localCacheDirty?"Offline changes restored ✓ • continue working; reconnect XLSX when ready":"Local bookkeeping restored ✓ • reconnect XLSX when ready";
     } else {
       $("status").textContent="Choose your OneDrive XLSX to begin"+(RENOWEET_ANDROID?" • keep Renoweet folder available offline in OneDrive":"");
     }
   }catch(e){
     console.error(e);
-    $("status").textContent="Choose your OneDrive XLSX to begin";
+    if(restoredLocalCache)$("status").textContent="Offline bookkeeping restored ✓ • reconnect XLSX when ready";
+    else $("status").textContent="Choose your OneDrive XLSX to begin";
   }
 }
+
 $("setupPinBtn").onclick=setupPin;
 $("unlockBtn").onclick=unlock;
 $("loginPin").addEventListener("keydown",e=>{if(e.key==="Enter")unlock()});
