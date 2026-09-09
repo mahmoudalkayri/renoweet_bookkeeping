@@ -425,6 +425,77 @@ let data={invoices:[],expenses:[],fuel:[],auto:[],deleted:[],control:{}}, editin
 let pendingProofFile=null, proofExtracted=null;
 let annualTaxData=null;
 
+// --- Android / OneDrive safety hardening ---
+const RENOWEET_ANDROID=/Android/i.test(navigator.userAgent||"");
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function oneDriveHelpText(){
+  return RENOWEET_ANDROID
+    ? "On this Android tablet, open OneDrive and set the Renoweet folder/workbook to Make available offline, wait for the download to finish, then reconnect the XLSX."
+    : "Wait for OneDrive to finish syncing the workbook, then reconnect it.";
+}
+function looksLikeXlsxZip(bytes){
+  if(!bytes||bytes.byteLength<100)return false;
+  const b=new Uint8Array(bytes);
+  const zipStart=b[0]===0x50&&b[1]===0x4b&&((b[2]===0x03&&b[3]===0x04)||(b[2]===0x05&&b[3]===0x06)||(b[2]===0x07&&b[3]===0x08));
+  if(!zipStart)return false;
+  // A complete XLSX should contain an end-of-central-directory marker near the end.
+  const start=Math.max(0,b.length-131072);
+  for(let i=b.length-4;i>=start;i--){
+    if(b[i]===0x50&&b[i+1]===0x4b&&((b[i+2]===0x05&&b[i+3]===0x06)||(b[i+2]===0x06&&b[i+3]===0x06)))return true;
+  }
+  return false;
+}
+function transientXlsxError(e){
+  const m=String(e?.message||e||"").toLowerCase();
+  return m.includes("unsupported zip")||m.includes("central directory")||m.includes("unexpected end")||m.includes("invalid")||m.includes("corrupt")||m.includes("zip");
+}
+function xlsxNotReadyError(cause){
+  const e=new Error("OneDrive has not provided a complete XLSX yet. "+oneDriveHelpText());
+  e.name="XlsxNotReadyError"; e.cause=cause; return e;
+}
+function canonicalize(v){
+  if(Array.isArray(v))return v.map(canonicalize);
+  if(v&&typeof v==="object")return Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonicalize(v[k])]));
+  return v??null;
+}
+async function sha256Json(v){
+  const raw=new TextEncoder().encode(JSON.stringify(canonicalize(v)));
+  const digest=await crypto.subtle.digest("SHA-256",raw);
+  return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+}
+function logicalBookkeepingData(wb){
+  const rows=n=>wb?.Sheets?.[n]?XLSX.utils.sheet_to_json(wb.Sheets[n],{defval:"",raw:true}):[];
+  const af=readAutoFuelRows(wb?.Sheets?.["Auto & Fuel"]);
+  return {Invoices:rows("Invoices"),Expenses:rows("Expenses"),Deleted:rows("Deleted"),Control:rows("Bookkeeping Control"),Fuel:af.fuel,Auto:af.auto};
+}
+async function bookkeepingLogicalSignature(wb){return sha256Json(logicalBookkeepingData(wb))}
+async function readWorkbookSafely(handle,expectedType,{askPermission=false,retries}={}){
+  if(!(await verifyPermission(handle,askPermission)))return null;
+  const maxTries=retries|| (RENOWEET_ANDROID?8:4);
+  let last=null;
+  for(let attempt=1;attempt<=maxTries;attempt++){
+    try{
+      const file=await handle.getFile();
+      const bytes=await file.arrayBuffer();
+      if(!looksLikeXlsxZip(bytes))throw xlsxNotReadyError();
+      let wb;
+      try{wb=XLSX.read(bytes,{type:"array",cellDates:false})}
+      catch(e){if(transientXlsxError(e))throw xlsxNotReadyError(e);throw e}
+      if(expectedType==="bookkeeping")assertBookkeepingWorkbook(wb,file.name||handle.name||"selected file");
+      if(expectedType==="os")assertOSWorkbook(wb,file.name||handle.name||"selected file");
+      return {file,bytes,workbook:wb};
+    }catch(e){
+      last=e;
+      if(e?.name!=="XlsxNotReadyError"||attempt===maxTries)break;
+      $("status") && ($("status").textContent=`Waiting for OneDrive XLSX… ${attempt}/${maxTries}`);
+      await sleep((RENOWEET_ANDROID?850:400)*attempt);
+    }
+  }
+  if(last?.name==="XlsxNotReadyError")throw xlsxNotReadyError(last);
+  throw last;
+}
+
+
 const euro=new Intl.NumberFormat("nl-NL",{style:"currency",currency:"EUR"});
 const dateFmt=new Intl.DateTimeFormat("nl-NL");
 const $=id=>document.getElementById(id);
@@ -523,7 +594,7 @@ function scheduleAutoSave(){
   if(!fileHandle){$("status").textContent="Not connected • changes are not saved";return}
   $("status").textContent="Unsaved changes…";
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>saveWorkbook(false),900);
+  saveTimer=setTimeout(()=>saveWorkbook(false),RENOWEET_ANDROID?2200:900);
 }
 
 function sheetRows(name){const ws=workbook.Sheets[name];return ws?XLSX.utils.sheet_to_json(ws,{defval:"",raw:true}):[]}
@@ -968,7 +1039,9 @@ async function loadAnnualTaxFiles(){
     const merged={invoices:[],expenses:[],fuel:[],auto:[],sources:[],audit:{duplicateInvoices:[],sourcePeriods:[],outOfPeriod:[]}}, seenInv=new Map();
     for(const h of handles){
       if(!(await verifyPermission(h,false))&&!(await verifyPermission(h,true)))continue;
-      const f=await h.getFile(),wb=XLSX.read(await f.arrayBuffer(),{type:"array",cellDates:false});assertBookkeepingWorkbook(wb,f.name);merged.sources.push(f.name);merged.audit.sourcePeriods.push({name:f.name,q:quarterKeyFromName(f.name),year:yearFromName(f.name)});
+      const snap=await readWorkbookSafely(h,"bookkeeping",{askPermission:false,retries:RENOWEET_ANDROID?6:3});
+      if(!snap)continue;
+      const f=snap.file,wb=snap.workbook;merged.sources.push(f.name);merged.audit.sourcePeriods.push({name:f.name,q:quarterKeyFromName(f.name),year:yearFromName(f.name)});
       const rows=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n],{defval:"",raw:true}):[];
       rows("Invoices").filter(r=>r["Invoice #"]).forEach(r=>{const k=String(r["Invoice #"]).trim();if(seenInv.has(k)){merged.audit.duplicateInvoices.push({invoice:k,files:[seenInv.get(k),f.name]})}else{seenInv.set(k,f.name);merged.invoices.push({...r,"Source File":f.name})}if(!periodDateMatches(r.Date,f.name))merged.audit.outOfPeriod.push({kind:"Invoice",source:f.name,date:r.Date,label:k})});
       rows("Expenses").filter(r=>r.Date||r.Supplier||r.Gross).forEach(r=>{merged.expenses.push({...r,"Source File":f.name});if(!periodDateMatches(r.Date,f.name))merged.audit.outOfPeriod.push({kind:"Expense",source:f.name,date:r.Date,label:r.Supplier||r.Description||""})});
@@ -1493,23 +1566,39 @@ function replaceDataSheets(){
   workbook.SheetNames=[...wanted.filter(n=>workbook.Sheets[n]),...workbook.SheetNames.filter(n=>!wanted.includes(n) && workbook.Sheets[n])];
 }
 async function saveWorkbook(manual=true){
-  if(isSaving) return;
-  if(!fileHandle){alert("Connect your OneDrive workbook first.");return}
+  if(isSaving) return false;
+  if(!fileHandle){if(manual)alert("Connect your OneDrive workbook first.");return false}
   if(!(await verifyPermission(fileHandle,manual))){
     $("status").textContent="Permission needed • click Connect workbook";
-    return;
+    return false;
   }
   try{
-    isSaving=true; $("saveNowBtn").disabled=true; $("status").textContent="Saving to OneDrive file…";
+    isSaving=true; $("saveNowBtn").disabled=true; $("status").textContent="Saving safely to OneDrive…";
     replaceDataSheets();
+    const expectedSignature=await bookkeepingLogicalSignature(workbook);
     const bytes=XLSX.write(workbook,{bookType:"xlsx",type:"array"});
+    if(!looksLikeXlsxZip(bytes))throw new Error("Renoweet could not build a complete XLSX package. Nothing was written.");
     const writable=await fileHandle.createWritable();
-    await writable.write(bytes);
-    await writable.close();
-    $("status").textContent="Saved ✓ • OneDrive will sync automatically";
+    try{await writable.write(bytes);await writable.close()}catch(e){try{await writable.abort?.()}catch(_){}throw e}
+
+    // Do not report success until the provider gives the complete workbook back and its ledger matches.
+    $("status").textContent="Verifying saved workbook…";
+    await sleep(RENOWEET_ANDROID?900:250);
+    const check=await readWorkbookSafely(fileHandle,"bookkeeping",{askPermission:false,retries:RENOWEET_ANDROID?7:4});
+    if(!check)throw new Error("Could not verify the saved workbook permission.");
+    const actualSignature=await bookkeepingLogicalSignature(check.workbook);
+    if(actualSignature!==expectedSignature){
+      const e=new Error("OneDrive returned different bookkeeping contents after the save. Renoweet did not mark this save as successful. Wait for OneDrive to finish syncing, then press Save now again.");
+      e.name="SaveVerificationError"; throw e;
+    }
+    workbook=check.workbook;
+    $("status").textContent="Saved & verified ✓ • OneDrive sync active";
+    return true;
   }catch(e){
-    console.error(e); $("status").textContent="Save failed";
-    if(manual) alert("Could not save the workbook: "+e.message);
+    console.error(e);
+    $("status").textContent=e?.name==="XlsxNotReadyError"?"OneDrive XLSX not ready • local page changes kept":"Save not verified • try again";
+    if(manual||e?.name==="SaveVerificationError") alert("Could not safely confirm the workbook save.\n\n"+(e?.message||e)+"\n\n"+oneDriveHelpText());
+    return false;
   }finally{
     isSaving=false; $("saveNowBtn").disabled=!fileHandle;
   }
@@ -1540,22 +1629,31 @@ function assertOSWorkbook(wb,fileName="selected file"){
   throw new Error(`“${fileName}” does not look like a Renoweet OS database. Nothing was imported.`);
 }
 async function loadFromHandle(handle,askPermission=true){
-  if(!(await verifyPermission(handle,askPermission))) return false;
-  const file=await handle.getFile();
-  const candidate=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
-  assertBookkeepingWorkbook(candidate,file.name||handle.name||"selected file");
-  const nextName=file.name||handle.name||"";
-  if(currentBookkeepingFileName && nextName && currentBookkeepingFileName!==nextName){
-    const ok=confirm(`Switch Bookkeeping workbook?\n\nCurrent: ${currentBookkeepingFileName}\nSelected: ${nextName}\n\nThese files stay separate. No data will be merged between quarterly bookkeeping files. Continue?`);
-    if(!ok)return false;
+  try{
+    const snap=await readWorkbookSafely(handle,"bookkeeping",{askPermission,retries:RENOWEET_ANDROID?8:4});
+    if(!snap)return false;
+    const file=snap.file,candidate=snap.workbook;
+    const nextName=file.name||handle.name||"";
+    if(currentBookkeepingFileName && nextName && currentBookkeepingFileName!==nextName){
+      const ok=confirm(`Switch Bookkeeping workbook?\n\nCurrent: ${currentBookkeepingFileName}\nSelected: ${nextName}\n\nThese files stay separate. No data will be merged between quarterly bookkeeping files. Continue?`);
+      if(!ok)return false;
+    }
+    workbook=candidate;
+    currentBookkeepingFileName=nextName;
+    fileHandle=handle; normalize(); render();
+    $("saveNowBtn").disabled=false;
+    $("status").textContent="Connected BOOKKEEPING: "+nextName+" • autosave on"+(RENOWEET_ANDROID?" • Android-safe mode":"");
+    await rememberHandle(handle);
+    return true;
+  }catch(e){
+    console.error(e);
+    if(e?.name==="XlsxNotReadyError"){
+      $("status").textContent="OneDrive XLSX is not fully available on this device";
+      alert("The bookkeeping XLSX is not fully available yet.\n\n"+oneDriveHelpText()+"\n\nNothing was loaded or overwritten.");
+      return false;
+    }
+    throw e;
   }
-  workbook=candidate;
-  currentBookkeepingFileName=nextName;
-  fileHandle=handle; normalize(); render();
-  $("saveNowBtn").disabled=false;
-  $("status").textContent="Connected BOOKKEEPING: "+nextName+" • autosave on";
-  await rememberHandle(handle);
-  return true;
 }
 
 async function connectWorkbook(){
@@ -1570,7 +1668,7 @@ async function connectWorkbook(){
     });
     await loadFromHandle(handle,true);
   }catch(e){
-    if(e.name!=="AbortError") alert("Could not connect workbook: "+e.message);
+    if(e.name!=="AbortError") alert("Could not connect workbook: "+e.message+(e?.name==="XlsxNotReadyError"?"\n\n"+oneDriveHelpText():""));
   }
 }
 
@@ -1620,14 +1718,14 @@ async function chooseOSWorkbook(){
       types:[{description:"Renoweet OS Excel database",accept:{"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":[".xlsx"]}}]
     });
     if(!(await verifyPermission(handle,true)))return null;
-    const f=await handle.getFile();
-    const wb=XLSX.read(await f.arrayBuffer(),{type:"array",cellDates:false});
-    assertOSWorkbook(wb,f.name||handle.name||"selected file");
+    const snap=await readWorkbookSafely(handle,"os",{askPermission:false,retries:RENOWEET_ANDROID?8:4});
+    if(!snap)return null;
+    const f=snap.file,wb=snap.workbook;
     osFileHandle=handle;
     await rememberHandle(handle,OS_HANDLE_KEY);
     return handle;
   }catch(e){
-    if(e.name!=="AbortError")alert("Could not connect Renoweet OS database: "+e.message);
+    if(e.name!=="AbortError")alert("Could not connect Renoweet OS database: "+e.message+(e?.name==="XlsxNotReadyError"?"\n\n"+oneDriveHelpText():""));
     return null;
   }
 }
@@ -1653,7 +1751,9 @@ async function syncRenoweetOS(forceChoose=false){
 
   try{
     $("osSyncStatus").innerHTML="<b>Renoweet OS sync:</b> reading database…";
-    const file=await handle.getFile();
+    const snap=await readWorkbookSafely(handle,"os",{askPermission:false,retries:RENOWEET_ANDROID?8:4});
+    if(!snap)return;
+    const file=snap.file;
     const bkQ=quarterKeyFromName(currentBookkeepingFileName), osQ=quarterKeyFromName(file.name);
     if(bkQ && osQ && bkQ!==osQ){
       $("osSyncStatus").innerHTML=`<b>Renoweet OS sync:</b> wrong period selected (${esc(file.name)}).`;
@@ -1662,8 +1762,7 @@ async function syncRenoweetOS(forceChoose=false){
       if(replacement)return syncRenoweetOS(false);
       return;
     }
-    const osBook=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:false});
-    assertOSWorkbook(osBook,file.name);
+    const osBook=snap.workbook;
     const ws=osBook.Sheets["Bookkeeping"];
     if(!ws){
       alert("No Bookkeeping sheet was found in the Renoweet OS database. First use “Send to bookkeeping” from the invoice form in Renoweet OS.");
@@ -1737,7 +1836,7 @@ async function startup(){
     if(remembered && await verifyPermission(remembered,false)){
       await loadFromHandle(remembered,false);
     } else {
-      $("status").textContent="Choose your OneDrive XLSX to begin";
+      $("status").textContent="Choose your OneDrive XLSX to begin"+(RENOWEET_ANDROID?" • keep Renoweet folder available offline in OneDrive":"");
     }
   }catch(e){
     console.error(e);
